@@ -6,13 +6,11 @@ main{
     justify-content: center;
     align-items: center;
     width: 60%;
+    padding: 0 20px;
 }
 .left-con{
-    display: flex;
     flex-direction: column;
     width: 60%;
-    padding: 20px;
-    padding-right: 0;
     justify-content: center;
     align-items: center;
 }
@@ -29,15 +27,15 @@ main{
 }
 .right-con{
     display: flex;
-    width: 40%;
+    width: 42%;
     justify-content: center;
     align-items: center;
     background-color: #F9FAFB;
-    border-radius: 4px;
+    border-radius: 8px;
 }
 .right-con form{
     border-radius: 4px;
-    padding: 40px;
+    padding: 45px;
 }
 form .form-header{
     margin-bottom: 25px;

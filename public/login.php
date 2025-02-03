@@ -49,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <img src="inc/CCS_LOGO.png" alt="CCS LOGO">
             <div style="width: 60%;"><h1>SIT-IN MONITORING SYSTEM</h1></div>
         </div>
-        <img src="inc/graphs.svg" alt="graphics" style="width: 90%;">
+        <img src="inc/graphs.svg" alt="graphics" style="width: 95%;">
     </div>
     <div class="right-con"> 
         <form action="login.php" method="post">
