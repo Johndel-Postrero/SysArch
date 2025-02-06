@@ -1,5 +1,8 @@
 <?php
 require __DIR__ . '/../config/db.php';
+$error = '';
+$error1 = '';
+$error2 = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $idno = filter_input(INPUT_POST, 'idno', FILTER_SANITIZE_NUMBER_INT);
@@ -12,28 +15,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
     $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
     
-    $check_sql = "SELECT * FROM users WHERE username = ? OR email = ?";
+    $check_sql = "SELECT * FROM users WHERE idno = ?";
     $stmt = $conn->prepare($check_sql);
-    $stmt->bind_param("ss", $username, $email);
+    $stmt->bind_param("s", $idno);
     $stmt->execute();
-    $result = $stmt->get_result();
+    $result1 = $stmt->get_result();
+    $stmt->close();
     
-    if ($result->num_rows > 0) {
-        echo "<p style='color:red;'>Username or Email already exists!</p>";
-    } else {
-        $sql = "INSERT INTO users (idno, lastname, firstname, middlename, course, level, email, username, password) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("issssisss", $idno, $lastname, $firstname, $middlename, $course, $level, $email, $username, $password);
+    if ($result1->num_rows > 0) {
+        $error = "Id number already exists!";
+        //echo "<p style='color:red;'>Username or Email already exists!</p>";
+    } else{
+        $check_sql = "SELECT * FROM users WHERE email = ?";
+        $stmt = $conn->prepare($check_sql);
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result2 = $stmt->get_result();
+        $stmt->close();
 
-        if ($stmt->execute()) {
-            echo "<p style='color:green;'>Registration successful!</p>";
-        } else {
-            echo "<p style='color:red;'>Error: " . $stmt->error . "</p>";
+        if($result2->num_rows > 0){
+            $error1 = "Email already exists!";
+        }else{
+            $check_sql = "SELECT * FROM users WHERE username = ?";
+            $stmt = $conn->prepare($check_sql);
+            $stmt->bind_param("s", $username);
+            $stmt->execute();
+            $result3 = $stmt->get_result();
+            $stmt->close();
+            if ($result3->num_rows > 0) {
+                $error2 = "Username already exists!";
+            }
+            else {
+                $sql = "INSERT INTO users (idno, lastname, firstname, middlename, course, level, email, username, password) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("issssisss", $idno, $lastname, $firstname, $middlename, $course, $level, $email, $username, $password);
+        
+                if ($_SERVER["REQUEST_METHOD"] == "POST") {
+                    if ($stmt->execute()) {
+                        // Redirect to avoid form resubmission
+                        header("Location: register.php?success=true");
+                        exit();
+                    } else {
+                        echo "<p style='color:red;'>Error: " . $stmt->error . "</p>";
+                    }
+                }
+                             
+            }
+        
         }
     }
 
-    $stmt->close();
     $conn->close();
 }
 ?>
@@ -69,9 +101,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         input {
             background-color: var(--input-background-color);
         }
+        #successDialog {
+            border: none;
+            border-radius: 8px;
+            background: white;
+            color: black;
+            padding: 20px;
+            width: 300px; 
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(255, 255, 255, 0.3);
+            position: fixed;
+            top: 13%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .modal-content {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #closeDialog {
+            align-self: flex-end; 
+            background: #7952b3;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 10px;
+            width:auto;
+            height: auto;
+        }
+
+        #closeDialog:hover {
+            background: #7952b3;
+        }
     </style>
 </head>
 <body>
+<dialog id="successDialog">
+    <div class="modal-content">
+        <p>Registration Successful!</p>
+        <button id="closeDialog">OK</button>
+    </div>
+</dialog>
+
     <div class="wrapper" style="background-image: url('inc/computer.png');">
         <div class="inner">
             <div class="image-holder">
@@ -84,44 +160,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <form action="register.php" method="post">
                 <h3>Sign Up</h3>
                 <div class="form-wrapper">
-                    <input type="number" name="idno" id="idno" placeholder="ID Number" class="form-control" required >
+                    <input type="number" name="idno" id="idno" required placeholder="ID Number" class="form-control <?php echo $error ? 'error' : ''; ?>" style="margin-bottom: <?php echo $error ? '10px' : '25px'; ?>;" value="<?php echo isset($_POST['idno']) ? htmlspecialchars($_POST['idno']) : ''; ?>">
                     <i class="zmdi zmdi-card"></i>
                 </div>
-                <div class="form-group">
-                    <input type="text" name="lastname" id="lastname" required placeholder="Last Name" class="form-control">
-                    <input type="text" name="firstname" id="firstname" required placeholder="First Name" class="form-control" style="margin-right: 25px;">  
-                    <input type="text" name="middlename" id="middlename" placeholder="Middle Name" class="form-control">
+                <?php if ($error): ?>
+                    <div class="error-message" style="color: red;"><?php echo htmlspecialchars($error); ?></div>
+                <?php endif; ?>
+                                <div class="form-group">
+                    <input type="text" name="lastname" id="lastname" required placeholder="Last Name" class="form-control" value="<?php echo isset($_POST['lastname']) ? htmlspecialchars($_POST['lastname']) : ''; ?>">
+                    <input type="text" name="firstname" id="firstname" required placeholder="First Name" class="form-control" style="margin-right: 25px;" value="<?php echo isset($_POST['firstname']) ? htmlspecialchars($_POST['firstname']) : ''; ?>">  
+                    <input type="text" name="middlename" id="middlename" placeholder="Middle Name" class="form-control" value="<?php echo isset($_POST['middlename']) ? htmlspecialchars($_POST['middlename']) : ''; ?>">
                 </div>
                 <div class="form-group">
                     <div class="form-wrapper" style="width: 50%; margin-right: 25px;">
-                        <select nid="course" name="course" required class="form-control">
-                            <option value="" disabled selected>Course</option>
-                            <option value="BSIT">BSIT</option>
-                            <option value="BSCS">BSCS</option>
+                        <select id="course" name="course" required class="form-control">
+                            <option value="" disabled <?php echo !isset($_POST['course']) ? 'selected' : ''; ?>>Course</option>
+                            <option value="BSIT" <?php echo isset($_POST['course']) && $_POST['course'] == 'BSIT' ? 'selected' : ''; ?>>BSIT</option>
+                            <option value="BSCS" <?php echo isset($_POST['course']) && $_POST['course'] == 'BSCS' ? 'selected' : ''; ?>>BSCS</option>
                         </select>
                         <i class="zmdi zmdi-caret-down" style="font-size: 17px; bottom: 30px;"></i>
                     </div>
                     <div class="form-wrapper" style="width: 50%;">
                         <select id="level" name="level" required required class="form-control">
-                            <option value="" disabled selected>Year Level</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
+                            <option value="" disabled <?php echo !isset($_POST['level']) ? 'selected' : ''; ?>>Year Level</option>
+                            <option value="1"<?php echo isset($_POST['level']) && $_POST['level'] == '1' ? 'selected' : ''; ?>>1</option>
+                            <option value="2"<?php echo isset($_POST['level']) && $_POST['level'] == '1' ? 'selected' : ''; ?>>2</option>
+                            <option value="3"<?php echo isset($_POST['level']) && $_POST['level'] == '1' ? 'selected' : ''; ?>>3</option>
+                            <option value="4"<?php echo isset($_POST['level']) && $_POST['level'] == '1' ? 'selected' : ''; ?>>4</option>
                         </select>
                         <i class="zmdi zmdi-caret-down" style="font-size: 17px; bottom: 30px;"></i>
                     </div>
                 </div>
                 <div class="form-wrapper">
-                    <input type="email" name="email" id="email" required placeholder="Email Address" class="form-control">
+                    <input type="email" name="email" id="email" required placeholder="Email Address" class="form-control <?php echo $error1 ? 'error' : ''; ?>" style="margin-bottom: <?php echo $error1 ? '10px' : '25px'; ?>;" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
                     <i class="zmdi zmdi-email"></i>
                 </div>
+                <?php if ($error1): ?>
+                    <div class="error-message" style="color: red;"><?php echo htmlspecialchars($error1); ?></div>
+                <?php endif; ?>
                 <div class="form-wrapper">
-                    <input type="text" name="username" id="username" required placeholder="Username" class="form-control">
+                    <input type="text" name="username" id="username" required placeholder="Username" class="form-control <?php echo $error2 ? 'error' : ''; ?>" style="margin-bottom: <?php echo $error2 ? '10px' : '25px'; ?>;" value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>">
                     <i class="zmdi zmdi-account"></i>
                 </div>
+                <?php if ($error2): ?>
+                    <div class="error-message" style="color: red;"><?php echo htmlspecialchars($error2); ?></div>
+                <?php endif; ?>
                 <div class="form-wrapper">
-                    <input type="password" name="password" id="password" required placeholder="Password" class="form-control">
+                    <input type="password" name="password" id="password" required placeholder="Password" class="form-control" value="<?php echo isset($_POST['password']) ? htmlspecialchars($_POST['password']) : ''; ?>">
                     <i class="zmdi zmdi-lock"></i>
                 </div>
                 <div>
@@ -136,4 +221,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 </body>
+<script>
+const inputsWithErrors = document.querySelectorAll('.form-control.error');
+
+inputsWithErrors.forEach(input => {
+    input.addEventListener('focus', function() {
+        input.classList.remove('error');
+
+        const errorDiv = input.closest('.form-wrapper').nextElementSibling;
+
+        if (errorDiv && errorDiv.classList.contains('error-message')) {
+            errorDiv.style.display = 'none'; 
+        }
+    });
+});
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("success") === "true") {
+        const dialog = document.getElementById("successDialog");
+        if (dialog) {
+            dialog.showModal();
+
+            window.history.replaceState({}, document.title, "register.php");
+        }
+    }
+
+    document.getElementById("closeDialog").addEventListener("click", function () {
+        document.getElementById("successDialog").close();
+        window.location.href = "login.php"; 
+    });
+});
+</script>
 </html>
