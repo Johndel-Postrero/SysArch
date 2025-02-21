@@ -16,6 +16,22 @@ body {
   font-size: 13px;
   margin: 0; }
 
+.wrapper {
+  position: relative;
+  background-size: cover;
+  background-position: center;
+}
+
+.wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3); 
+    z-index: 1;
+}
 input, textarea, select, button {
   font-family: "Poppins-Regular";
   color: #333;
@@ -52,6 +68,8 @@ a:hover {
   max-width: 950px;
   margin: auto;
   display: flex; 
+  position: relative;
+  z-index: 2; 
 }
   .inner .image-holder {
     width: 50%; 
