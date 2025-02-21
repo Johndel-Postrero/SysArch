@@ -99,7 +99,7 @@ $conn->close();
             <!-- Dropdown Menu -->
             <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50">
                 <a href="profile.php" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-200">
-                    <i class="fas fa-cog mr-3"></i> Settings
+                    <i class="fas fa-user mr-3"></i> Profile
                 </a>
                 <a href="logout.php" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-200">
                     <i class="fas fa-sign-out-alt mr-3"></i> Logout
