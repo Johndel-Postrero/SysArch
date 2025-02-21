@@ -31,7 +31,7 @@ $pageTitle = isset($titles[$page]) ? $titles[$page] : "Dashboard";
 $firstname = isset($_SESSION['firstname']) ? $_SESSION['firstname'] : "Guest";
 $lastname = isset($_SESSION['lastname']) ? $_SESSION['lastname'] : "";
 $initials = strtoupper(substr($firstname, 0, 1) . substr($lastname, 0, 1));
-
+$profile_picture = isset($user['profile_picture']) ? $user['profile_picture'] : "default-profile.png";
 $conn->close();
 ?>
 <!DOCTYPE html>
@@ -61,7 +61,13 @@ $conn->close();
             <div class="flex items-center cursor-pointer" id="profileDropdownBtn">
                 <!-- Profile Initials -->
                 <div class="w-10 h-10 flex items-center justify-center bg-gray-300 text-white font-semibold rounded-full mr-2 text-lg">
-                    <?php echo $initials; ?>
+                    <?php 
+                    if($profile_picture && file_exists(__DIR__ . '/../public/upload/' . $profile_picture)){
+                        echo '<img src="upload/' . htmlspecialchars($profile_picture) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
+                    }else{
+                        echo $initials;
+                    }
+                    ?>
                 </div>
                 <div>
                 <p class="text-sm font-semibold"><?php echo htmlspecialchars("$firstname $lastname"); ?></p>
