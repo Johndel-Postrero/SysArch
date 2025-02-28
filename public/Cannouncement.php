@@ -15,12 +15,25 @@ if (!isset($_SESSION['login_user'])) {
     exit();
 }
 
-// Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $title = trim($_POST['title']);
     $description = trim($_POST['description']);
     $admin_id = $_SESSION['user_id'];
     $attachment = null;
+    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : null;
+
+    // Fetch existing attachment if no new file is uploaded
+    if ($post_id && empty($_FILES['attachment']['name'])) {
+        $query = $conn->prepare("SELECT attachment FROM announcements WHERE id = ?");
+        $query->bind_param("i", $post_id);
+        $query->execute();
+        $result = $query->get_result();
+        if ($result->num_rows > 0) {
+            $row = $result->fetch_assoc();
+            $attachment = $row['attachment'];
+        }
+        $query->close();
+    }
 
     // File Upload Handling
     if (!empty($_FILES['attachment']['name'])) {
@@ -36,14 +49,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // Insert into database
-    $stmt = $conn->prepare("INSERT INTO announcements (title, description, attachment, admin_id) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("sssi", $title, $description, $attachment, $admin_id);
+    if ($post_id) {
+        // Update existing post
+        $stmt = $conn->prepare("UPDATE announcements SET title = ?, description = ?, attachment = ? WHERE id = ?");
+        $stmt->bind_param("sssi", $title, $description, $attachment, $post_id);
+    } else {
+        // Insert new post
+        $stmt = $conn->prepare("INSERT INTO announcements (title, description, attachment, admin_id) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("sssi", $title, $description, $attachment, $admin_id);
+    }
 
     if ($stmt->execute()) {
-        echo "<script>alert('Post added successfully!'); window.location='Cannouncement.php';</script>";
+        echo "<script>alert('Post " . ($post_id ? "updated" : "added") . " successfully!'); window.location='Cannouncement.php';</script>";
     } else {
-        echo "<script>alert('Error adding post!');</script>";
+        echo "<script>alert('Error " . ($post_id ? "updating" : "adding") . " post!');</script>";
     }
     $stmt->close();
 }
@@ -101,8 +120,8 @@ $result = $conn->query($query);
             margin-left: 5rem;
             transition: margin-left 0.3s ease-in-out;
         }
-        .sidebar:hover ~ .main-content {
-            margin-left: 16rem;
+        .sidebar:hover + .main-content {
+            margin-left: 16rem; /* Adjust content when sidebar expands */
         }
         /* Modal Styling */
         #overlay {
@@ -131,6 +150,13 @@ $result = $conn->query($query);
             border-radius: 10px;
             margin-top: 10px;
         }
+        .clickable-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .clickable-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
     </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased">
@@ -141,7 +167,7 @@ $result = $conn->query($query);
         <!-- Main Content -->
         <div class="main-content flex-1 flex flex-col">
             <!-- Include Header -->
-            <?php include 'headerad1.php'; ?>
+            <?php include 'headerad.php'; ?>
             <div class="flex-1 p-6 flex justify-center items-center">
                 <div class="main-con p-6 max-w-4xl w-full">
                     <!-- Search and Filter -->
@@ -173,57 +199,86 @@ $result = $conn->query($query);
                             <span>Add Post</span>
                         </button>
                     </div>
-
-                    <!-- Modal -->
-                    <div id="overlay">
-                        <div id="overlay-content">
-                            <button id="closeOverlay" class="absolute top-3 right-3 text-gray-600 hover:text-gray-800">
-                                <i class="fas fa-times text-xl"></i>
-                            </button>
-                            <h2 class="text-xl font-bold text-center mb-4">Add Post</h2>
-                            <form method="POST" enctype="multipart/form-data">
-                                <div class="mb-4">
-                                    <label class="block text-gray-700 font-semibold">Title</label>
-                                    <input type="text" name="title" class="w-full px-3 py-2 border rounded-lg" required>
-                                </div>
-                                <div class="mb-4">
-                                    <label class="block text-gray-700 font-semibold">Description</label>
-                                    <textarea name="description" class="w-full px-3 py-2 border rounded-lg" rows="6" required></textarea>
-                                </div>
-                                <div class="mb-4">
-                                    <label class="block text-gray-700 font-semibold">Attachment</label>
-                                    <input type="file" name="attachment" id="fileInput" class="w-full border rounded-lg p-2">
-                                    <div id="preview" class="mt-2"></div>
-                                </div>
-                                <button type="submit" class="w-full bg-[#002044] text-white py-2 rounded-lg">Post</button>
-                            </form>
-                        </div>
-                    </div>
+<!-- Modal -->
+<div id="overlay">
+    <div id="overlay-content">
+        <button id="closeOverlay" class="absolute top-3 right-3 text-gray-600 hover:text-gray-800" onclick="closeModal()">
+            <i class="fas fa-times text-xl"></i>
+        </button>
+        <h2 id="modalTitle" class="text-xl font-bold text-center mb-4">Add Post</h2>
+        <form method="POST" enctype="multipart/form-data">
+            <!-- Hidden input for post ID (used in update mode) -->
+            <input type="hidden" name="post_id" id="post_id">
+            
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold">Title</label>
+                <input type="text" name="title" id="modalTitleInput" class="w-full px-3 py-2 border rounded-lg" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold">Description</label>
+                <textarea name="description" id="modalDescriptionInput" class="w-full px-3 py-2 border rounded-lg" rows="6" required></textarea>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold">Attachment</label>
+                <input type="file" name="attachment" id="fileInput" class="w-full border rounded-lg p-2">
+                <div id="preview" class="mt-2"></div>
+            </div>
+            <button type="submit" name="submit_type" id="submitButton" class="w-full bg-[#002044] text-white py-2 rounded-lg">Post</button>
+        </form>
+    </div>
+</div>
 
                     <!-- Announcement Cards -->
                     <?php if ($result && $result->num_rows > 0): ?>
                         <?php while ($row = $result->fetch_assoc()): ?>
-                            <div class="bg-white rounded-lg shadow p-6 mb-4">
-                                <div class="flex items-center mb-4">
-                                    <img alt="Admin Avatar" class="w-10 h-10 rounded-full" src="https://placehold.co/40x40" />
-                                    <div class="ml-4">
-                                        <p class="font-semibold"><?php echo htmlspecialchars($_SESSION['login_user']); ?> · Admin</p>
-                                        <p class="text-sm text-gray-500"><?php echo date("M j, Y", strtotime($row['created_at'])); ?></p>
-                                    </div>
-                                </div>
-                                <h2 class="text-xl font-bold mb-2"><?php echo htmlspecialchars($row['title']); ?></h2>
-                                <p class="text-gray-700 mb-4"><?php echo nl2br(htmlspecialchars($row['description'])); ?></p>
+                            <div class="bg-white rounded-lg shadow p-6 mb-4 cursor-pointer" onclick="openUpdateModal(<?php echo $row['id']; ?>)">
+    <div class="flex items-center mb-4">
+        <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
+            <?php 
+            if (isset($_SESSION['profile_picture']) && file_exists(__DIR__ . '/../public/upload/' . $_SESSION['profile_picture'])) {
+                echo '<img src="upload/' . htmlspecialchars($_SESSION['profile_picture']) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
+            } else {
+                echo $initials;
+            }
+            ?>
+        </div>
+        <div class="ml-4">
+            <p class="font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' . $_SESSION['middlename'] . '. ' . $_SESSION['lastname']); ?> · Admin</p>
+            <p class="text-sm text-gray-500"><?php echo date("M j, Y", strtotime($row['created_at'])); ?></p>
+        </div>
+    </div>
+    <h2 class="text-xl font-bold mb-2"><?php echo htmlspecialchars($row['title']); ?></h2>
+    <p class="text-gray-700 mb-4"><?php echo nl2br(htmlspecialchars($row['description'])); ?></p>
 
-                                <!-- Display Image If Attachment Exists -->
-                                <?php if (!empty($row['attachment'])): ?>
-                                    <img alt="Announcement Image" class="w-full rounded-lg mb-4" src="public/announce/<?php echo htmlspecialchars($row['attachment']); ?>" />
-                                <?php endif; ?>
+    <!-- Display Attachment If Exists -->
+    <?php if (!empty($row['attachment'])): ?>
+        <?php
+        $file_path = "public/announce/" . htmlspecialchars($row['attachment']);
+        $file_extension = strtolower(pathinfo($row['attachment'], PATHINFO_EXTENSION));
+        $image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+        ?>
+        
+        <div class="mt-4">
+            <?php if (in_array($file_extension, $image_extensions)): ?>
+                <!-- Display Image -->
+                <img src="<?php echo $file_path; ?>" alt="Announcement Image" class="w-full rounded-lg mb-4">
+            <?php else: ?>
+                <!-- Display Download Link for Non-Image Files -->
+                <a href="<?php echo $file_path; ?>" 
+                download="<?php echo htmlspecialchars($row['attachment']); ?>" 
+                class="text-blue-500 hover:text-blue-700 underline"
+                onclick="event.stopPropagation()">
+                    <?php echo htmlspecialchars($row['attachment']); ?>
+                </a>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
 
-                                <button class="flex items-center mt-5 space-x-2 text-gray-600">
-                                    <i class="fas fa-comment"></i>
-                                    <span>Comment</span>
-                                </button>
-                            </div>
+    <button class="flex items-center mt-5 space-x-2 text-gray-600" onclick="event.stopPropagation()">
+        <i class="fas fa-comment"></i>
+        <span>Comment</span>
+    </button>
+</div>
                         <?php endwhile; ?>
                     <?php else: ?>
                         <p class="text-gray-600 text-center">No announcements found.</p>
@@ -234,26 +289,85 @@ $result = $conn->query($query);
     </div>
 
     <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const overlay = document.getElementById("overlay");
-            const openOverlayBtn = document.getElementById("openOverlay");
-            const closeOverlayBtn = document.getElementById("closeOverlay");
-            const fileInput = document.getElementById("fileInput");
-            const preview = document.getElementById("preview");
+    document.addEventListener("DOMContentLoaded", function () {
+        const overlay = document.getElementById("overlay");
+        const openOverlayBtn = document.getElementById("openOverlay");
+        const closeOverlayBtn = document.getElementById("closeOverlay");
+        const fileInput = document.getElementById("fileInput");
+        const preview = document.getElementById("preview");
 
-            openOverlayBtn.addEventListener("click", () => overlay.style.display = "flex");
-            closeOverlayBtn.addEventListener("click", () => overlay.style.display = "none");
-
-            fileInput.addEventListener("change", function (event) {
-                preview.innerHTML = "";
-                const file = event.target.files[0];
-                if (file && file.type.startsWith("image/")) {
-                    const img = document.createElement("img");
-                    img.src = URL.createObjectURL(file);
-                    preview.appendChild(img);
-                }
-            });
+        // Open modal in "Add Post" mode
+        openOverlayBtn.addEventListener("click", () => {
+            resetModalToAddPostMode(); // Reset modal to "Add Post" mode
+            overlay.style.display = "flex";
         });
-    </script>
+
+        // Close modal
+        closeOverlayBtn.addEventListener("click", () => overlay.style.display = "none");
+
+        // Handle file preview
+        fileInput.addEventListener("change", function (event) {
+            preview.innerHTML = "";
+            const file = event.target.files[0];
+            if (file && file.type.startsWith("image/")) {
+                const img = document.createElement("img");
+                img.src = URL.createObjectURL(file);
+                preview.appendChild(img);
+            }
+        });
+    });
+
+    // Function to reset modal to "Add Post" mode
+    function resetModalToAddPostMode() {
+        document.getElementById("modalTitle").textContent = "Add Post";
+        document.getElementById("submitButton").textContent = "Post";
+        document.getElementById("post_id").value = ""; // Clear post ID
+        document.getElementById("modalTitleInput").value = ""; // Clear title
+        document.getElementById("modalDescriptionInput").value = ""; // Clear description
+        document.getElementById("preview").innerHTML = ""; // Clear file preview
+        document.getElementById("fileInput").value = ""; // Clear file input
+    }
+
+    // Function to open modal in "Update Post" mode
+    function openUpdateModal(postId) {
+        fetch(`get_post.php?id=${postId}`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("modalTitle").textContent = "Update Post";
+                document.getElementById("submitButton").textContent = "Update";
+                document.getElementById("post_id").value = data.id; // Set post ID
+                document.getElementById("modalTitleInput").value = data.title; // Set title
+                document.getElementById("modalDescriptionInput").value = data.description; // Set description
+
+                // Display attachment if it exists
+                const preview = document.getElementById("preview");
+                preview.innerHTML = ""; // Clear previous preview
+                if (data.attachment) {
+                    const fileExtension = data.attachment.split('.').pop().toLowerCase();
+                    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+
+                    if (imageExtensions.includes(fileExtension)) {
+                        // Display image
+                        const img = document.createElement("img");
+                        img.src = `public/announce/${data.attachment}`;
+                        img.alt = "Attachment Preview";
+                        img.classList.add("w-full", "rounded-lg", "mb-4");
+                        preview.appendChild(img);
+                    } else {
+                        // Display download link for non-image files
+                        const link = document.createElement("a");
+                        link.href = `public/announce/${data.attachment}`;
+                        link.download = data.attachment;
+                        link.textContent = data.attachment;
+                        link.classList.add("text-blue-500", "hover:text-blue-700", "underline");
+                        preview.appendChild(link);
+                    }
+                }
+
+                document.getElementById("overlay").style.display = "flex";
+            })
+            .catch(error => console.error("Error fetching post data:", error));
+    }
+</script>
 </body>
 </html>

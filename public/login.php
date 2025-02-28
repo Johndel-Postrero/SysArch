@@ -20,6 +20,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['login_user'] = $username;
             $_SESSION['idno'] = $user['idno']; 
             $_SESSION['firstname'] = $user['firstname'];
+            $_SESSION['middlename'] = $user['middlename'];
             $_SESSION['lastname'] = $user['lastname'];
             $_SESSION['role'] = $user['role'];
             $_SESSION['user_id'] = $user['id']; // Assuming 'id' is the column name in your database

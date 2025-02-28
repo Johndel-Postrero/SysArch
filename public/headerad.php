@@ -25,88 +25,53 @@ $pageTitle = isset($titles[$page]) ? $titles[$page] : "Dashboard";
 
 // Fetch user info from session or database
 $firstname = "Guest";
+$middlename = "";
 $lastname = "";
 $initials = "G";
 
-if (isset($_SESSION['login_user'])) {
-    $username = $_SESSION['login_user'];
-    $query = $conn->prepare("SELECT firstname, lastname, profile_picture, role FROM users WHERE username = ?");
-    $query->bind_param("s", $username);
-    $query->execute();
-    $result = $query->get_result();
-    
-    if ($result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        $firstname = $user['firstname'];
-        $lastname = $user['lastname'];
-        $role = $user['role'];
-        $profile_picture = $user['profile_picture'] ?? "default-profile.png";
-        $initials = strtoupper(substr($firstname, 0, 1) . substr($lastname, 0, 1));
-
-        // Update session variables
-        $_SESSION['firstname'] = $firstname;
-        $_SESSION['lastname'] = $lastname;
-        $_SESSION['role'] = $role;
-        $_SESSION['profile_picture'] = $profile_picture;
+function updateUserSession($conn, &$firstname, &$middlename, &$lastname, &$profile_picture, &$role, &$initials) {
+    if (isset($_SESSION['login_user'])) {
+        $username = $_SESSION['login_user'];
+        $query = $conn->prepare("SELECT firstname, middlename, lastname, profile_picture, role FROM users WHERE username = ?");
+        if (!$query) {
+            die("Prepare failed: " . $conn->error);
+        }
+        $query->bind_param("s", $username);
+        if (!$query->execute()) {
+            die("Execute failed: " . $query->error);
+        }
+        $result = $query->get_result();
+        
+        if ($result->num_rows > 0) {
+            $user = $result->fetch_assoc();
+            // Update session variables
+            $_SESSION['firstname'] = $user['firstname'];
+            $_SESSION['middlename'] = $user['middlename']; // Middlename is stored here
+            $_SESSION['lastname'] = $user['lastname'];
+            $_SESSION['role'] = $user['role'];
+            $_SESSION['profile_picture'] = $user['profile_picture'] ?? "default-profile.png";
+        
+            // Update the passed variables
+            $firstname = $_SESSION['firstname'];
+            $middlename = $_SESSION['middlename']; // Middlename is passed here
+            $lastname = $_SESSION['lastname'];
+            $profile_picture = $_SESSION['profile_picture'];
+            $role = $_SESSION['role'];
+            $initials = strtoupper(substr($firstname, 0, 1) . substr($lastname, 0, 1));
+        }
+        $query->close();
     }
-    $query->close();
 }
-
-$conn->close();
-?>
-<?php
-// Only start session if one isn't active already
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-require __DIR__ . '/../config/db.php';
-
-// Get the current page filename
-$page = basename($_SERVER['PHP_SELF'], ".php");
-
-// Define a title based on the page
-$titles = [
-    "admimIndex" => "Dashboard",
-    "search_results" => "Search Results",
-    "profile" => "Profile Settings",
-    "sitin" => "Sit-In Rules and Regulations",
-    "laboratory" => "Laboratory Rules and Regulations",
-    "reservation" => "Reservations",
-    "history" => "Sit-in History"
-];
-
-// Set the page title dynamically (default to 'Dashboard' if not found)
-$pageTitle = isset($titles[$page]) ? $titles[$page] : "Dashboard";
-
-// Fetch user info from session or database
+// Define default values
 $firstname = "Guest";
+$middlename = "";
 $lastname = "";
-$initials = "G";
+$profile_picture = "default-profile.png";
+$role = "Guest";
+$initials = "G"; // Default initials
 
-if (isset($_SESSION['login_user'])) {
-    $username = $_SESSION['login_user'];
-    $query = $conn->prepare("SELECT firstname, lastname, profile_picture, role FROM users WHERE username = ?");
-    $query->bind_param("s", $username);
-    $query->execute();
-    $result = $query->get_result();
-    
-    if ($result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        $firstname = $user['firstname'];
-        $lastname = $user['lastname'];
-        $role = $user['role'];
-        $profile_picture = $user['profile_picture'] ?? "default-profile.png";
-        $initials = strtoupper(substr($firstname, 0, 1) . substr($lastname, 0, 1));
-
-        // Update session variables
-        $_SESSION['firstname'] = $firstname;
-        $_SESSION['lastname'] = $lastname;
-        $_SESSION['role'] = $role;
-        $_SESSION['profile_picture'] = $profile_picture;
-    }
-    $query->close();
-}
+// Call the function and pass variables by reference
+updateUserSession($conn, $firstname, $middlename, $lastname, $profile_picture, $role, $initials);
 
 $conn->close();
 ?>
@@ -160,16 +125,16 @@ $conn->close();
                 <!-- Profile Initials -->
                 <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
                     <?php 
-                    if($profile_picture && file_exists(__DIR__ . '/../public/upload/' . $profile_picture)){
-                        echo '<img src="upload/' . htmlspecialchars($profile_picture) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
-                    }else{
+                    if (isset($_SESSION['profile_picture']) && file_exists(__DIR__ . '/../public/upload/' . $_SESSION['profile_picture'])) {
+                        echo '<img src="upload/' . htmlspecialchars($_SESSION['profile_picture']) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
+                    } else {
                         echo $initials;
                     }
                     ?>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold"><?php echo htmlspecialchars("$firstname $lastname"); ?></p>
-                    <p class="text-xs text-gray-500"><?php echo htmlspecialchars(ucfirst($role)); ?></p>
+                    <p class="text-sm font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' .$_SESSION['middlename'] . '. '. $_SESSION['lastname']); ?></p>
+                    <p class="text-xs text-gray-500"><?php echo htmlspecialchars(ucfirst($_SESSION['role'] ?? 'Guest')); ?></p>
                 </div>
             </div>
             <!-- Dropdown Menu -->

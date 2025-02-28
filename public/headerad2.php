@@ -12,7 +12,7 @@ $page = basename($_SERVER['PHP_SELF'], ".php");
 // Define a title based on the page
 $titles = [
     "admimIndex" => "Dashboard",
-    "search_results" => "Search Results",
+    "announcement" => "Announcements",
     "profile" => "Profile Settings",
     "sitin" => "Sit-In Rules and Regulations",
     "laboratory" => "Laboratory Rules and Regulations",
@@ -25,32 +25,51 @@ $pageTitle = isset($titles[$page]) ? $titles[$page] : "Dashboard";
 
 // Fetch user info from session or database
 $firstname = "Guest";
+$middlename = "";
 $lastname = "";
 $initials = "G";
 
-if (isset($_SESSION['login_user'])) {
-    $username = $_SESSION['login_user'];
-    $query = $conn->prepare("SELECT firstname, lastname, profile_picture, role FROM users WHERE username = ?");
-    $query->bind_param("s", $username);
-    $query->execute();
-    $result = $query->get_result();
-    
-    if ($result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        $firstname = $user['firstname'];
-        $lastname = $user['lastname'];
-        $role = $user['role'];
-        $profile_picture = $user['profile_picture'] ?? "default-profile.png";
-        $initials = strtoupper(substr($firstname, 0, 1) . substr($lastname, 0, 1));
-
-        // Update session variables
-        $_SESSION['firstname'] = $firstname;
-        $_SESSION['lastname'] = $lastname;
-        $_SESSION['role'] = $role;
-        $_SESSION['profile_picture'] = $profile_picture;
+function updateUserSession($conn, &$firstname, &$middlename, &$lastname, &$profile_picture, &$role) {
+    if (isset($_SESSION['login_user'])) {
+        $username = $_SESSION['login_user'];
+        $query = $conn->prepare("SELECT firstname, middlename, lastname, profile_picture, role FROM users WHERE username = ?");
+        if (!$query) {
+            die("Prepare failed: " . $conn->error);
+        }
+        $query->bind_param("s", $username);
+        if (!$query->execute()) {
+            die("Execute failed: " . $query->error);
+        }
+        $result = $query->get_result();
+        
+        if ($result->num_rows > 0) {
+            $user = $result->fetch_assoc();
+            // Update session variables
+            $_SESSION['firstname'] = $user['firstname'];
+            $_SESSION['middlename'] = $user['middlename']; // Middlename is stored here
+            $_SESSION['lastname'] = $user['lastname'];
+            $_SESSION['role'] = $user['role'];
+            $_SESSION['profile_picture'] = $user['profile_picture'] ?? "default-profile.png";
+        
+            // Update the passed variables
+            $firstname = $_SESSION['firstname'];
+            $middlename = $_SESSION['middlename']; // Middlename is passed here
+            $lastname = $_SESSION['lastname'];
+            $profile_picture = $_SESSION['profile_picture'];
+            $role = $_SESSION['role'];
+        }
+        $query->close();
     }
-    $query->close();
 }
+// Define default values
+$firstname = "Guest";
+$middlename = "";
+$lastname = "";
+$profile_picture = "default-profile.png";
+$role = "Guest";
+
+// Call the function and pass variables by reference
+updateUserSession($conn, $firstname, $middlename, $lastname, $profile_picture, $role);
 
 $conn->close();
 ?>
@@ -59,54 +78,32 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Responsive Header</title>
+    <title>Header</title>
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .header {
-            position: sticky;
+        .header{
+            position:sticky;
             top: 0;
         }
-        @media (max-width: 570px) {
-            .search-bar {
-                display: none;
-            }
-        }
+        
     </style>
 </head>
 <body>
-<header class="header flex items-center justify-between bg-white py-6 px-6">
+<header class="header flex items-center justify-between bg-white p-6">
     <h2 class="text-2xl font-semibold"><?php echo $pageTitle; ?></h2>
-
-    <div class="flex items-center space-x-4">
-        <!-- Search Bar (Visible on Larger Screens) -->
-        <form action="search_results.php" method="GET" class="relative w-80 flex items-center search-bar sm:flex hidden">
-            <div class="relative w-full">
-                <button type="submit" class="absolute inset-y-0 right-3 flex items-center">
-                    <i class="fas fa-search text-gray-400"></i>
-                </button>
-                <input type="text" name="query" placeholder="Search by Name or ID" 
-                    class="w-full py-2 pl-5 pr-10 h-10 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500">
-            </div>
-        </form>
-        
-        <!-- Search Icon (for small screens) -->
-        <button id="searchIcon" class="md:hidden text-xl">
-            <i class="fas fa-search"></i>
-        </button>
-        
-        <!-- Notification Bell -->
-        <i class="fas fa-bell text-xl"></i>
-
+    <div class="flex items-center">
+        <!-- Bell Icon -->
+        <i class="fas fa-bell text-xl mr-6"></i>
         <!-- Profile Dropdown -->
         <div class="relative">
             <div class="flex items-center cursor-pointer" id="profileDropdownBtn">
                 <!-- Profile Initials -->
                 <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
                     <?php 
-                    if ($profile_picture && file_exists(__DIR__ . '/../public/upload/' . $profile_picture)) {
+                    if($profile_picture && file_exists(__DIR__ . '/../public/upload/' . $profile_picture)){
                         echo '<img src="upload/' . htmlspecialchars($profile_picture) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
-                    } else {
+                    }else{
                         echo $initials;
                     }
                     ?>

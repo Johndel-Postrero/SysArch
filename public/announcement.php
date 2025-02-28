@@ -3,8 +3,7 @@
 header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1.
 header("Pragma: no-cache"); // HTTP 1.0.
 header("Expires: 0"); // Proxies.
-?>
-<?php
+
 session_start();
 
 // Check if the user is logged in
@@ -12,6 +11,13 @@ if (!isset($_SESSION['login_user'])) {
     header("Location: login.php");
     exit();
 }
+
+// Database connection
+require __DIR__ . '/../config/db.php';
+
+// Fetch announcements from the database
+$query = "SELECT * FROM announcements ORDER BY created_at DESC";
+$result = $conn->query($query);
 ?>
 <html>
 <head>
@@ -27,76 +33,48 @@ if (!isset($_SESSION['login_user'])) {
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
     <style>
-body {
-    font-family: "Poppins-Regular";
-    color: #333;
-    font-size: 16px;
-    margin: 0; }
-    header{
-        z-index: 1;
-    }
-    .sidebar {
-        width: 5rem; /* Default width */
-        transition: all 0.3s ease-in-out;
-    }
-    .sidebar:hover {
-        width: 16rem; /* Expanded width */
-    }
-    .sidebar:hover .sidebar-text {
-        display: inline;
-    }
-    .sidebar-text {
-        display: none;
-    }
-    .sidebar a {
-        display: flex;
-        align-items: center;
-        justify-content: center; /* Centers the icons */
-        padding: 1rem;
-    }
-    .sidebar:hover a {
-        justify-content: flex-start; /* Aligns text to the left on hover */
-    }
-    .sidebar i {
-        font-size: 1.5rem; /* Slightly larger icons */
-    }
-    .dropdown-content {
-        display: none;
-        margin-left: 2rem;
-    }
-    .dropdown:hover .dropdown-content {
-        display: block;
-    }
-    body {
-    margin: 0;
-}
-
-.main-content {
-    margin-left: 5rem; /* Adjust based on the sidebar width */
-    transition: margin-left 0.3s ease-in-out; /* Smooth transition */
-}
-
-.sidebar:hover + .main-content {
-    margin-left: 16rem; /* Adjust content when sidebar expands */
-
-}
-.dropdown-content {
-            display: none;
-            position: absolute;
-            background-color: white;
-            min-width: 160px;
-            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        body {
+            font-family: "Poppins-Regular";
+            color: #333;
+            font-size: 16px;
+            margin: 0;
+        }
+        header {
             z-index: 1;
         }
-        .dropdown-content a {
-            color: black;
-            padding: 12px 16px;
-            text-decoration: none;
-            display: block;
+        .sidebar {
+            width: 5rem; /* Default width */
+            transition: all 0.3s ease-in-out;
         }
-        .dropdown-content a:hover {background-color: #f1f1f1}
-        .dropdown:hover .dropdown-content {display: block;}
-</style>
+        .sidebar:hover {
+            width: 16rem; /* Expanded width */
+        }
+        .sidebar:hover .sidebar-text {
+            display: inline;
+        }
+        .sidebar-text {
+            display: none;
+        }
+        .sidebar a {
+            display: flex;
+            align-items: center;
+            justify-content: center; /* Centers the icons */
+            padding: 1rem;
+        }
+        .sidebar:hover a {
+            justify-content: flex-start; /* Aligns text to the left on hover */
+        }
+        .sidebar i {
+            font-size: 1.5rem; /* Slightly larger icons */
+        }
+        .main-content {
+            margin-left: 5rem; /* Adjust based on the sidebar width */
+            transition: margin-left 0.3s ease-in-out; /* Smooth transition */
+        }
+        .sidebar:hover + .main-content {
+            margin-left: 16rem; /* Adjust content when sidebar expands */
+        }
+    </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased">
     <div class="flex h-screen">
@@ -131,26 +109,63 @@ body {
                             </div>
                         </div>
                     </div>
-                    <!-- Announcement Card -->
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <div class="flex items-center mb-4">
-                            <img alt="Admin Avatar" class="w-10 h-10 rounded-full" src="https://placehold.co/40x40" />
-                            <div class="ml-4">
-                                <p class="font-semibold">John Wayne · Admin</p>
-                                <p class="text-sm text-gray-500">5h</p>
+
+                    <!-- Announcement Cards -->
+                    <?php if ($result && $result->num_rows > 0): ?>
+                        <?php while ($row = $result->fetch_assoc()): ?>
+                            <div class="bg-white rounded-lg shadow p-6 mb-4">
+                                <div class="flex items-center mb-4">
+                                    <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
+                                        <?php 
+                                        if (isset($_SESSION['profile_picture']) && file_exists(__DIR__ . '/../public/upload/' . $_SESSION['profile_picture'])) {
+                                            echo '<img src="upload/' . htmlspecialchars($_SESSION['profile_picture']) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
+                                        } else {
+                                            echo $initials;
+                                        }
+                                        ?>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' . $_SESSION['middlename'] . '. ' . $_SESSION['lastname']); ?> · Admin</p>
+                                        <p class="text-sm text-gray-500"><?php echo date("M j, Y", strtotime($row['created_at'])); ?></p>
+                                    </div>
+                                </div>
+                                <h2 class="text-xl font-bold mb-2"><?php echo htmlspecialchars($row['title']); ?></h2>
+                                <p class="text-gray-700 mb-4"><?php echo nl2br(htmlspecialchars($row['description'])); ?></p>
+
+                                <!-- Display Attachment If Exists -->
+                                <?php if (!empty($row['attachment'])): ?>
+                                    <?php
+                                    $file_path = "public/announce/" . htmlspecialchars($row['attachment']);
+                                    $file_extension = strtolower(pathinfo($row['attachment'], PATHINFO_EXTENSION));
+                                    $image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+                                    ?>
+                                    
+                                    <div class="mt-4">
+                                        <?php if (in_array($file_extension, $image_extensions)): ?>
+                                            <!-- Display Image -->
+                                            <img src="<?php echo $file_path; ?>" alt="Announcement Image" class="w-full rounded-lg mb-4">
+                                        <?php else: ?>
+                                            <!-- Display Download Link for Non-Image Files -->
+                                            <a href="<?php echo $file_path; ?>" 
+                                            download="<?php echo htmlspecialchars($row['attachment']); ?>" 
+                                            class="text-blue-500 hover:text-blue-700 underline">
+                                                <?php echo htmlspecialchars($row['attachment']); ?>
+                                            </a>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+
+                                <button class="flex items-center mt-5 space-x-2 text-gray-600">
+                                    <i class="fas fa-comment"></i>
+                                    <span>Comment</span>
+                                </button>
                             </div>
-                        </div>
-                        <h2 class="text-xl font-bold mb-2">New Sit-In Rules Implemented</h2>
-                        <p class="text-gray-700 mb-4">Sitin Rules have been changed due to szbn rtyua dfghlz bnm werty uiopa szbn rtyua dfghlz bnm werty uiopa szbn rtyua dfghlz bnm werty uiopa szbn rtyua.</p>
-                        <img alt="People planting trees" class="w-full rounded-lg mb-4" src="https://placehold.co/600x300" />
-                        <button class="flex items-center mt-5 space-x-2 text-gray-600">
-                            <i class="fas fa-comment"></i>
-                            <span>Comment</span>
-                        </button>
-                    </div>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <p class="text-gray-600 text-center">No announcements found.</p>
+                    <?php endif; ?>
                 </div>
             </div>
- 
         </div>
     </div>
 </body>

@@ -6,15 +6,12 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require __DIR__ . '/../config/db.php';
 
-// Debug: output session idno value
-// var_dump($_SESSION['idno']);
-
 // Get the current page filename
 $page = basename($_SERVER['PHP_SELF'], ".php");
 
 // Define a title based on the page
 $titles = [
-    "index" => "Dashboard",
+    "admimIndex" => "Dashboard",
     "announcement" => "Announcements",
     "profile" => "Profile Settings",
     "sitin" => "Sit-In Rules and Regulations",
@@ -28,33 +25,53 @@ $pageTitle = isset($titles[$page]) ? $titles[$page] : "Dashboard";
 
 // Fetch user info from session or database
 $firstname = "Guest";
+$middlename = "";
 $lastname = "";
 $initials = "G";
 
-if (isset($_SESSION['login_user'])) {
-    $username = $_SESSION['login_user'];
-    $query = $conn->prepare("SELECT firstname, lastname, profile_picture, role FROM users WHERE username = ?");
-    $query->bind_param("s", $username);
-    $query->execute();
-    $result = $query->get_result();
-    
-    if ($result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        $firstname = $user['firstname'];
-        $lastname = $user['lastname'];
-        $role = $user['role'];
-        $profile_picture = $user['profile_picture'] ?? "default-profile.png";
-        $initials = strtoupper(substr($firstname, 0, 1) . substr($lastname, 0, 1));
-
-        // Update session variables
-        $_SESSION['firstname'] = $firstname;
-        $_SESSION['lastname'] = $lastname;
-        $_SESSION['role'] = $role;
-        $_SESSION['profile_picture'] = $profile_picture;
+function updateUserSession($conn, &$firstname, &$middlename, &$lastname, &$profile_picture, &$role, &$initials) {
+    if (isset($_SESSION['login_user'])) {
+        $username = $_SESSION['login_user'];
+        $query = $conn->prepare("SELECT firstname, middlename, lastname, profile_picture, role FROM users WHERE username = ?");
+        if (!$query) {
+            die("Prepare failed: " . $conn->error);
+        }
+        $query->bind_param("s", $username);
+        if (!$query->execute()) {
+            die("Execute failed: " . $query->error);
+        }
+        $result = $query->get_result();
+        
+        if ($result->num_rows > 0) {
+            $user = $result->fetch_assoc();
+            // Update session variables
+            $_SESSION['firstname'] = $user['firstname'];
+            $_SESSION['middlename'] = $user['middlename']; // Middlename is stored here
+            $_SESSION['lastname'] = $user['lastname'];
+            $_SESSION['role'] = $user['role'];
+            $_SESSION['profile_picture'] = $user['profile_picture'] ?? "default-profile.png";
+        
+            // Update the passed variables
+            $firstname = $_SESSION['firstname'];
+            $middlename = $_SESSION['middlename']; // Middlename is passed here
+            $lastname = $_SESSION['lastname'];
+            $profile_picture = $_SESSION['profile_picture'];
+            $role = $_SESSION['role'];
+            $initials = strtoupper(substr($firstname, 0, 1) . substr($lastname, 0, 1));
+        }
+        $query->close();
     }
-    $query->close();
 }
+// Define default values
+$firstname = "Guest";
+$middlename = "";
+$lastname = "";
+$profile_picture = "default-profile.png";
+$role = "Guest";
+$initials = "G"; // Default initials
 
+// Call the function and pass variables by reference
+updateUserSession($conn, $firstname, $middlename, $lastname, $profile_picture, $role, $initials);
 
 $conn->close();
 ?>

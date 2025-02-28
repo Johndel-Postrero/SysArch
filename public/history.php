@@ -80,22 +80,6 @@ body {
     margin-left: 16rem; /* Adjust content when sidebar expands */
 
 }
-.dropdown-content {
-            display: none;
-            position: absolute;
-            background-color: white;
-            min-width: 160px;
-            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-            z-index: 1;
-        }
-        .dropdown-content a {
-            color: black;
-            padding: 12px 16px;
-            text-decoration: none;
-            display: block;
-        }
-        .dropdown-content a:hover {background-color: #f1f1f1}
-        .dropdown:hover .dropdown-content {display: block;}
 </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased">
@@ -130,21 +114,20 @@ body {
                                 <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                             </div>
                             <div class="relative dropdown">
-                                <button onclick="toggleDropdown()" class="flex items-center space-x-2 text-gray-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
-                                    </svg>
-                                    <span>Sort</span>
-                                </button>
-
-                                <!-- Dropdown Menu -->
-                                <div id="sortDropdown" class="absolute right-0 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 w-32 hidden">
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100">A-Z</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100">Z-A</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100">Newest</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100">Oldest</a>
-                                </div>
+                            <button class="flex items-center space-x-2 text-gray-600 relative">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+                                </svg>
+                                <span>Sort</span>
+                            </button>
+                            <!-- Dropdown menu -->
+                            <div class="dropdown-content absolute left-1/2 transform -translate-x-1/2 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 w-32">
+                                <a href="#" class="block px-4 py-2 hover:bg-gray-100">A-Z</a>
+                                <a href="#" class="block px-4 py-2 hover:bg-gray-100">Z-A</a>
+                                <a href="#" class="block px-4 py-2 hover:bg-gray-100">Newest</a>
+                                <a href="#" class="block px-4 py-2 hover:bg-gray-100">Oldest</a>
                             </div>
+                        </div>
                         </div>
                     </div>
 

@@ -30,6 +30,7 @@ $pageTitle = isset($titles[$page]) ? $titles[$page] : "Dashboard";
 // Ensure session variables exist before using them
 $firstname = isset($_SESSION['firstname']) ? $_SESSION['firstname'] : "Guest";
 $lastname = isset($_SESSION['lastname']) ? $_SESSION['lastname'] : "";
+$middlename = isset($_SESSION['middlename']) ? $_SESSION['middlename'] : "";
 $initials = strtoupper(substr($firstname, 0, 1) . substr($lastname, 0, 1));
 $role = isset($user['role']) ? $user['role'] : "";
 $profile_picture = isset($user['profile_picture']) ? $user['profile_picture'] : "default-profile.png";
@@ -95,12 +96,12 @@ $conn->close();
                     ?>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold"><?php echo htmlspecialchars("$firstname $lastname"); ?></p>
+                    <p class="text-sm font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' .$_SESSION['middlename'] . '. '. $_SESSION['lastname']); ?> </p>
                     <p class="text-xs text-gray-500"><?php echo htmlspecialchars(ucfirst($role)); ?></p>
                 </div>
             </div>
             <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50">
-                <a href="profile.php" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-200">
+                <a href="profilead.php" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-200">
                     <i class="fas fa-user mr-3"></i> Profile
                 </a>
                 <a href="logout.php" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-200">

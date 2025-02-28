@@ -94,10 +94,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     exit();
 }
 
-
 $conn->close();
 ?>
-
 
 <!DOCTYPE html>
 <html lang="en">
@@ -305,20 +303,21 @@ document.querySelectorAll('.sit-in-btn').forEach(button => {
     });
 });
 
-document.querySelector("form").addEventListener("submit", function(event) {
+document.getElementById('sitInForm').addEventListener('submit', function(event) {
     event.preventDefault(); // Prevent form from reloading the page
 
     let formData = new FormData(this);
 
-    fetch("process_sit_in.php", {
+    fetch("search_results.php?query=<?php echo urlencode($_GET['query'] ?? ''); ?>", {
         method: "POST",
         body: formData
     })
-    .then(response => response.text()) 
+    .then(response => response.text())
     .then(data => {
         console.log(data); // Debugging
         alert("Sit-in successfully recorded!"); // Optional: Display success message
         document.getElementById('sitInOverlay').classList.add('hidden'); // Close modal
+        window.location.reload(); // Reload the page to reflect changes
     })
     .catch(error => {
         console.error("Error:", error);
@@ -335,7 +334,6 @@ function toggleOtherReason() {
     var otherReasonDiv = document.getElementById("otherReasonDiv");
     otherReasonDiv.classList.toggle("hidden", purposeSelect.value !== "Others");
 }
-
     </script>
 
 </body>
