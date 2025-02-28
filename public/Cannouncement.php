@@ -141,7 +141,7 @@ $result = $conn->query($query);
         <!-- Main Content -->
         <div class="main-content flex-1 flex flex-col">
             <!-- Include Header -->
-            <?php include 'headerad.php'; ?>
+            <?php include 'headerad1.php'; ?>
             <div class="flex-1 p-6 flex justify-center items-center">
                 <div class="main-con p-6 max-w-4xl w-full">
                     <!-- Search and Filter -->
@@ -203,7 +203,6 @@ $result = $conn->query($query);
                     <!-- Announcement Cards -->
                     <?php if ($result && $result->num_rows > 0): ?>
                         <?php while ($row = $result->fetch_assoc()): ?>
-                            <pre><?php print_r($row); ?></pre> <!-- Debugging output -->
                             <div class="bg-white rounded-lg shadow p-6 mb-4">
                                 <div class="flex items-center mb-4">
                                     <img alt="Admin Avatar" class="w-10 h-10 rounded-full" src="https://placehold.co/40x40" />
