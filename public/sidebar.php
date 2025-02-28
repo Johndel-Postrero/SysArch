@@ -69,7 +69,7 @@
         <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="index.php">
             <i class="fas fa-home mr-3"></i> <span class="sidebar-text">Home</span>
         </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="#">
+        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="announcement.php">
             <i class="fas fa-bullhorn mr-3"></i> <span class="sidebar-text">Announcements</span>
         </a>
         <!-- Rules and Regulations Dropdown -->
@@ -89,7 +89,7 @@
         <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="reservation.php">
             <i class="fas fa-calendar-alt mr-3"></i> <span class="sidebar-text">Reservations</span>
         </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="#">
+        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="history.php">
             <i class="fas fa-clock mr-3"></i> <span class="sidebar-text">History</span>
         </a>
     </nav>

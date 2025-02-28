@@ -31,6 +31,7 @@ $pageTitle = isset($titles[$page]) ? $titles[$page] : "Dashboard";
 $firstname = isset($_SESSION['firstname']) ? $_SESSION['firstname'] : "Guest";
 $lastname = isset($_SESSION['lastname']) ? $_SESSION['lastname'] : "";
 $initials = strtoupper(substr($firstname, 0, 1) . substr($lastname, 0, 1));
+$role= isset($user['role']) ? $user['role'] : "";
 $profile_picture = isset($user['profile_picture']) ? $user['profile_picture'] : "default-profile.png";
 $conn->close();
 ?>
@@ -60,7 +61,7 @@ $conn->close();
         <div class="relative">
             <div class="flex items-center cursor-pointer" id="profileDropdownBtn">
                 <!-- Profile Initials -->
-                <div class="w-10 h-10 flex items-center justify-center bg-gray-300 text-white font-semibold rounded-full mr-2 text-lg">
+                <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
                     <?php 
                     if($profile_picture && file_exists(__DIR__ . '/../public/upload/' . $profile_picture)){
                         echo '<img src="upload/' . htmlspecialchars($profile_picture) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
@@ -70,9 +71,8 @@ $conn->close();
                     ?>
                 </div>
                 <div>
-                <p class="text-sm font-semibold"><?php echo htmlspecialchars("$firstname $lastname"); ?></p>
-
-                    <p class="text-xs text-gray-500">Student</p>
+                    <p class="text-sm font-semibold"><?php echo htmlspecialchars("$firstname $lastname"); ?></p>
+                    <p class="text-xs text-gray-500"><?php echo htmlspecialchars(ucfirst($role)); ?></p>
                 </div>
             </div>
             <!-- Dropdown Menu -->

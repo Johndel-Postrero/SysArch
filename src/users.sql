@@ -22,21 +22,33 @@ CREATE TABLE users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     profile_picture VARCHAR(255) DEFAULT 'default-profile.png',
-    role ENUM('student', 'admin', 'staff') NOT NULL DEFAULT 'student'
+    role ENUM('student', 'admin', 'staff') NOT NULL DEFAULT 'student',
+    session INT DEFAULT 30 CHECK (role = 'student' OR session IS NULL)
 );
+
 
 
 
 CREATE TABLE reservations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     idno INT NOT NULL,
-    lastname VARCHAR(50) NOT NULL,
-    firstname VARCHAR(50) NOT NULL,
     room_number INT NOT NULL,
-    seat_number INT NOT NULL,
     reservation_date DATE NOT NULL,
     time_in TIME NOT NULL,
+    time_out TIME NOT NULL,
     purpose TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (idno) REFERENCES users(idno) ON DELETE CASCADE
 );
+
+CREATE TABLE announcements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    attachment VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    admin_id INT NOT NULL,
+    FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE
+);
+

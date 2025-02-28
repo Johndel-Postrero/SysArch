@@ -170,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php include 'sidebar.php'; ?>
     <div class="main-content flex-1 flex flex-col">
       <?php include 'header1.php'; ?>
-      <div class="wrapper">
+      <div class="flex-1 p-6">
         <div class="inner max-w-lg mx-auto">
           <form method="post" enctype="multipart/form-data">
             <div class="flex justify-center items-center w-full">

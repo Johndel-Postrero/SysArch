@@ -2,7 +2,6 @@
 require __DIR__ . '/../config/db.php';
 session_start();
 $error = '';
-
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = filter_input(INPUT_POST, 'username');
     $password = filter_input(INPUT_POST, 'password');
@@ -17,14 +16,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if ($user) {
         if (password_verify($password, $user['password'])) {
-            // Set session variables after verifying credentials
+            // Set session variables
             $_SESSION['login_user'] = $username;
             $_SESSION['idno'] = $user['idno']; 
-            // Set firstname and lastname after fetching user data
             $_SESSION['firstname'] = $user['firstname'];
             $_SESSION['lastname'] = $user['lastname'];
+            $_SESSION['role'] = $user['role'];
+            $_SESSION['user_id'] = $user['id']; // Assuming 'id' is the column name in your database
+            $_SESSION['login_success'] = true; // Store success flag in session
 
-            header("Location: login.php?success=true"); 
+            // Redirect back to login.php so JavaScript can handle the success message
+            header("Location: login.php");
             exit();
         } else {
             $error = "Invalid username or password";
@@ -36,6 +38,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $conn->close();
 }
 ?>
+
 <?php
 // Prevent caching
 header("Cache-Control: no-cache, no-store, must-revalidate");
@@ -150,9 +153,26 @@ header("Expires: 0");
     </div>
 </body>
 <script>
+document.addEventListener("DOMContentLoaded", function () {
+    // Check if login success session variable is set
+    <?php if (isset($_SESSION['login_success']) && $_SESSION['login_success'] === true): ?>
+        const dialog = document.getElementById("successDialog");
+        if (dialog) {
+            dialog.showModal();
+        }
+        <?php unset($_SESSION['login_success']); ?> // Remove session variable after displaying the dialog
+
+        document.getElementById("closeDialog").addEventListener("click", function () {
+            document.getElementById("successDialog").close();
+            window.location.href = "<?php echo ($_SESSION['role'] === 'admin') ? 'adminIndex.php' : 'index.php'; ?>";
+        });
+    <?php endif; ?>
+});
+
+// Password toggle functionality (kept separate from the above event listener)
 document.getElementById("togglePassword").addEventListener("click", function() {
     var passwordInput = document.getElementById("password");
-    var icon = document.getElementById("togglePassword");
+    var icon = this; // 'this' refers to the clicked element (the icon)
 
     if (passwordInput.type === "password") {
         passwordInput.type = "text";
@@ -164,20 +184,6 @@ document.getElementById("togglePassword").addEventListener("click", function() {
         icon.classList.add("zmdi-lock");
     }
 });
-document.addEventListener("DOMContentLoaded", function () {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("success") === "true") {
-        const dialog = document.getElementById("successDialog");
-        if (dialog) {
-            dialog.showModal();
 
-            window.history.replaceState({}, document.title, "login.php");
-        }
-    }
-    document.getElementById("closeDialog").addEventListener("click", function () {
-        document.getElementById("successDialog").close();
-        window.location.href = "index.php"; 
-    });
-});
 </script>
 </html>

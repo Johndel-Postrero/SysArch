@@ -31,7 +31,7 @@ if (!isset($_SESSION['login_user'])) {
 body {
     font-family: "Poppins-Regular";
     color: #333;
-    font-size: 14px;
+    font-size: 16px;
     margin: 0; }
     .sidebar {
         width: 5rem; /* Default width */

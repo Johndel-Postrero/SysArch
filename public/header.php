@@ -15,6 +15,7 @@ $page = basename($_SERVER['PHP_SELF'], ".php");
 // Define a title based on the page
 $titles = [
     "index" => "Dashboard",
+    "announcement" => "Announcements",
     "profile" => "Profile Settings",
     "sitin" => "Sit-In Rules and Regulations",
     "laboratory" => "Laboratory Rules and Regulations",
@@ -32,7 +33,7 @@ $initials = "G";
 
 if (isset($_SESSION['login_user'])) {
     $username = $_SESSION['login_user'];
-    $query = $conn->prepare("SELECT firstname, lastname, profile_picture FROM users WHERE username = ?");
+    $query = $conn->prepare("SELECT firstname, lastname, profile_picture, role FROM users WHERE username = ?");
     $query->bind_param("s", $username);
     $query->execute();
     $result = $query->get_result();
@@ -41,12 +42,14 @@ if (isset($_SESSION['login_user'])) {
         $user = $result->fetch_assoc();
         $firstname = $user['firstname'];
         $lastname = $user['lastname'];
+        $role = $user['role'];
         $profile_picture = $user['profile_picture'] ?? "default-profile.png";
         $initials = strtoupper(substr($firstname, 0, 1) . substr($lastname, 0, 1));
 
         // Update session variables
         $_SESSION['firstname'] = $firstname;
         $_SESSION['lastname'] = $lastname;
+        $_SESSION['role'] = $role;
         $_SESSION['profile_picture'] = $profile_picture;
     }
     $query->close();
@@ -81,7 +84,7 @@ $conn->close();
         <div class="relative">
             <div class="flex items-center cursor-pointer" id="profileDropdownBtn">
                 <!-- Profile Initials -->
-                <div class="w-10 h-10 flex items-center justify-center bg-gray-300 text-white font-semibold rounded-full mr-2 text-lg">
+                <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
                     <?php 
                     if($profile_picture && file_exists(__DIR__ . '/../public/upload/' . $profile_picture)){
                         echo '<img src="upload/' . htmlspecialchars($profile_picture) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
@@ -91,9 +94,8 @@ $conn->close();
                     ?>
                 </div>
                 <div>
-                <p class="text-sm font-semibold"><?php echo htmlspecialchars("$firstname $lastname"); ?></p>
-
-                    <p class="text-xs text-gray-500">Student</p>
+                    <p class="text-sm font-semibold"><?php echo htmlspecialchars("$firstname $lastname"); ?></p>
+                    <p class="text-xs text-gray-500"><?php echo htmlspecialchars(ucfirst($role)); ?></p>
                 </div>
             </div>
             <!-- Dropdown Menu -->
