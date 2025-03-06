@@ -93,21 +93,25 @@ $result = $conn->query($query);
                             <input class="w-full py-2 pl-10 pr-4 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="Search" type="text"/>
                             <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                         </div>
+                        <!-- Sort Dropdown -->
                         <div class="relative dropdown">
-                            <button class="flex items-center space-x-2 text-gray-600 relative">
+                            <!-- Dropdown Button -->
+                            <button id="sortButton" class="flex items-center space-x-2 text-gray-600 relative focus:outline-none">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
                                 </svg>
                                 <span>Sort</span>
                             </button>
-                            <!-- Dropdown menu -->
-                            <div class="dropdown-content absolute left-1/2 transform -translate-x-1/2 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 w-32">
-                                <a href="#" class="block px-4 py-2 hover:bg-gray-100">A-Z</a>
-                                <a href="#" class="block px-4 py-2 hover:bg-gray-100">Z-A</a>
-                                <a href="#" class="block px-4 py-2 hover:bg-gray-100">Newest</a>
-                                <a href="#" class="block px-4 py-2 hover:bg-gray-100">Oldest</a>
+
+                            <!-- Dropdown Menu -->
+                            <div id="sortDropdown" class="hidden absolute left-0 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 w-32">
+                                <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="A-Z">A-Z</a>
+                                <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="Z-A">Z-A</a>
+                                <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="Newest">Newest</a>
+                                <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="Oldest">Oldest</a>
                             </div>
                         </div>
+
                     </div>
 
                     <!-- Announcement Cards -->
@@ -168,5 +172,91 @@ $result = $conn->query($query);
             </div>
         </div>
     </div>
+    <script>
+document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.querySelector('input[type="text"]');
+    const sortButton = document.getElementById('sortButton');
+    const sortDropdown = document.getElementById('sortDropdown');
+    const sortOptions = sortDropdown.querySelectorAll('a');
+    const announcementContainer = document.querySelector('.main-con'); // Holds both search & announcements
+    const announcementCards = document.querySelectorAll('.bg-white.rounded-lg.shadow.p-6.mb-4');
+
+    // Keep a reference to the original search & filter UI
+    const filterSection = document.querySelector('.flex.items-center.space-x-4.mb-6');
+
+    // Toggle dropdown menu visibility
+    sortButton.addEventListener('click', function (e) {
+        e.stopPropagation();
+        sortDropdown.classList.toggle('hidden');
+    });
+
+    // Prevent dropdown from closing when clicking inside it
+    sortDropdown.addEventListener('click', function (e) {
+        e.stopPropagation();
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function (e) {
+        if (!sortButton.contains(e.target) && !sortDropdown.contains(e.target)) {
+            sortDropdown.classList.add('hidden');
+        }
+    });
+
+    // Search Functionality
+    searchInput.addEventListener('input', function () {
+        const searchTerm = this.value.toLowerCase();
+        announcementCards.forEach(card => {
+            const title = card.querySelector('h2').textContent.toLowerCase();
+            const description = card.querySelector('p.text-gray-700').textContent.toLowerCase();
+
+            if (title.includes(searchTerm) || description.includes(searchTerm)) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    });
+
+    // Sort Functionality
+    sortOptions.forEach(option => {
+        option.addEventListener('click', function (e) {
+            e.preventDefault();
+            sortDropdown.classList.add('hidden'); // Hide dropdown after selection
+
+            const sortOption = this.getAttribute('data-sort');
+            const cardsArray = Array.from(announcementCards);
+
+            cardsArray.sort((a, b) => {
+                const titleA = a.querySelector('h2').textContent.toLowerCase();
+                const titleB = b.querySelector('h2').textContent.toLowerCase();
+                const dateA = new Date(a.querySelector('p.text-sm.text-gray-500').textContent);
+                const dateB = new Date(b.querySelector('p.text-sm.text-gray-500').textContent);
+
+                switch (sortOption) {
+                    case 'A-Z':
+                        return titleA.localeCompare(titleB);
+                    case 'Z-A':
+                        return titleB.localeCompare(titleA);
+                    case 'Newest':
+                        return dateB - dateA;
+                    case 'Oldest':
+                        return dateA - dateB;
+                    default:
+                        return 0;
+                }
+            });
+
+            // Clear only announcement cards (preserving search and sort UI)
+            announcementContainer.innerHTML = ''; // Remove all content
+            announcementContainer.appendChild(filterSection); // Re-add search & sort UI
+
+            // Re-append sorted cards
+            cardsArray.forEach(card => announcementContainer.appendChild(card));
+        });
+    });
+});
+</script>
+
+
 </body>
 </html>

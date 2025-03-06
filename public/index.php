@@ -1,10 +1,10 @@
 <?php
+date_default_timezone_set('Asia/Manila');
 // Prevent caching
 header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1.
 header("Pragma: no-cache"); // HTTP 1.0.
 header("Expires: 0"); // Proxies.
-?>
-<?php
+
 session_start();
 
 // Check if the user is logged in
@@ -12,6 +12,80 @@ if (!isset($_SESSION['login_user'])) {
     header("Location: login.php");
     exit();
 }
+
+// Include the database connection
+require __DIR__ . '/../config/db.php';
+
+// Fetch session data for the logged-in user
+$username = $_SESSION['login_user'];
+$query = $conn->prepare("SELECT session FROM users WHERE username = ?");
+$query->bind_param("s", $username);
+$query->execute();
+$result = $query->get_result();
+$user = $result->fetch_assoc();
+
+$sessionsLeft = $user['session'];
+$sessionsUsed = 30 - $sessionsLeft; // Assuming the total sessions are 30
+
+$query->close();
+
+// Fetch the latest 10 announcements
+$announcementsQuery = $conn->prepare("SELECT title, created_at FROM announcements ORDER BY created_at DESC LIMIT 10");
+$announcementsQuery->execute();
+$announcementsResult = $announcementsQuery->get_result();
+$announcements = [];
+
+while ($row = $announcementsResult->fetch_assoc()) {
+    // Calculate the time difference
+    $createdAt = new DateTime($row['created_at']);
+    $now = new DateTime();
+    $interval = $createdAt->diff($now);
+
+    if ($interval->y > 0) {
+        $timeAgo = $interval->y . " year" . ($interval->y > 1 ? "s" : "") . " ago";
+    } elseif ($interval->m > 0) {
+        $timeAgo = $interval->m . " month" . ($interval->m > 1 ? "s" : "") . " ago";
+    } elseif ($interval->d > 0) {
+        $timeAgo = $interval->d . " day" . ($interval->d > 1 ? "s" : "") . " ago";
+    } elseif ($interval->h > 0) {
+        $timeAgo = $interval->h . " hour" . ($interval->h > 1 ? "s" : "") . " ago";
+    } elseif ($interval->i > 0) {
+        $timeAgo = $interval->i . " minute" . ($interval->i > 1 ? "s" : "") . " ago";
+    } else {
+        $timeAgo = "Just now";
+    }
+
+    $announcements[] = [
+        'title' => $row['title'],
+        'timeAgo' => $timeAgo
+    ];
+}
+
+$announcementsQuery->close();
+
+// Fetch lab usage data
+$labUsageQuery = $conn->prepare("
+    SELECT 
+        sitin_date, 
+        SUM(TIME_TO_SEC(TIMEDIFF(time_out, time_in))) AS total_seconds 
+    FROM sitin 
+    WHERE time_out IS NOT NULL 
+    GROUP BY sitin_date 
+    ORDER BY sitin_date DESC 
+    LIMIT 30
+");
+$labUsageQuery->execute();
+$labUsageResult = $labUsageQuery->get_result();
+$labUsageData = [];
+
+while ($row = $labUsageResult->fetch_assoc()) {
+    // Convert total seconds to hours
+    $totalHours = $row['total_seconds'] / 3600; // 3600 seconds = 1 hour
+    $labUsageData[$row['sitin_date']] = $totalHours;
+}
+
+$labUsageQuery->close();
+$conn->close();
 ?>
 <html>
 <head>
@@ -28,57 +102,55 @@ if (!isset($_SESSION['login_user'])) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Chart.js -->
     <style>
-body {
-    font-family: "Poppins-Regular";
-    color: #333;
-    font-size: 16px;
-    margin: 0; }
-    .sidebar {
-        width: 5rem; /* Default width */
-        transition: all 0.3s ease-in-out;
-    }
-    .sidebar:hover {
-        width: 16rem; /* Expanded width */
-    }
-    .sidebar:hover .sidebar-text {
-        display: inline;
-    }
-    .sidebar-text {
-        display: none;
-    }
-    .sidebar a {
-        display: flex;
-        align-items: center;
-        justify-content: center; /* Centers the icons */
-        padding: 1rem;
-    }
-    .sidebar:hover a {
-        justify-content: flex-start; /* Aligns text to the left on hover */
-    }
-    .sidebar i {
-        font-size: 1.5rem; /* Slightly larger icons */
-    }
-    .dropdown-content {
-        display: none;
-        margin-left: 2rem;
-    }
-    .dropdown:hover .dropdown-content {
-        display: block;
-    }
-    body {
-    margin: 0;
-}
-
-.main-content {
-    margin-left: 5rem; /* Adjust based on the sidebar width */
-    transition: margin-left 0.3s ease-in-out; /* Smooth transition */
-}
-
-.sidebar:hover + .main-content {
-    margin-left: 16rem; /* Adjust content when sidebar expands */
-
-}
-</style>
+        body {
+            font-family: "Poppins-Regular";
+            color: #333;
+            font-size: 16px;
+            margin: 0;
+        }
+        .sidebar {
+            width: 5rem; /* Default width */
+            transition: all 0.3s ease-in-out;
+        }
+        .sidebar:hover {
+            width: 16rem; /* Expanded width */
+        }
+        .sidebar:hover .sidebar-text {
+            display: inline;
+        }
+        .sidebar-text {
+            display: none;
+        }
+        .sidebar a {
+            display: flex;
+            align-items: center;
+            justify-content: center; /* Centers the icons */
+            padding: 1rem;
+        }
+        .sidebar:hover a {
+            justify-content: flex-start; /* Aligns text to the left on hover */
+        }
+        .sidebar i {
+            font-size: 1.5rem; /* Slightly larger icons */
+        }
+        .dropdown-content {
+            display: none;
+            margin-left: 2rem;
+        }
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+        body {
+            margin: 0;
+        }
+        .main-content {
+            margin-left: 5rem; /* Adjust based on the sidebar width */
+            transition: margin-left 0.3s ease-in-out; /* Smooth transition */
+        }
+        .sidebar:hover + .main-content {
+            margin-left: 16rem; /* Adjust content when sidebar expands */
+        }
+    </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased">
     <div class="flex h-screen">
@@ -99,7 +171,7 @@ body {
                             <!-- Sessions Left -->
                             <div class="bg-[#002044] text-white p-4 rounded-lg flex items-center justify-between h-24">
                                 <div>
-                                    <p class="text-3xl font-semibold">30</p>
+                                    <p class="text-3xl font-semibold"><?php echo $sessionsLeft; ?></p>
                                     <p>Sessions Left</p>
                                 </div>
                                 <i class="fas fa-calendar-alt text-3xl"></i>
@@ -107,7 +179,7 @@ body {
                             <!-- Sessions Used -->
                             <div class="bg-white p-4 rounded-lg flex items-center justify-between shadow h-24">
                                 <div>
-                                    <p class="text-3xl font-semibold">30</p>
+                                    <p class="text-3xl font-semibold"><?php echo $sessionsUsed; ?></p>
                                     <p>Sessions Used</p>
                                 </div>
                                 <i class="fas fa-calendar-alt text-3xl text-gray-500"></i>
@@ -133,18 +205,28 @@ body {
                     <div class="bg-white p-6 rounded-lg shadow">
                         <h3 class="text-lg font-semibold mb-4">Announcements</h3>
                         <div class="space-y-4">
-                            <div class="bg-[#002044] text-white p-4 rounded-lg flex justify-between items-center">
-                                <p>New Sit-In Rules Are Set</p>
-                                <span class="text-sm">15 minutes ago</span>
-                            </div>
-                            <div class="bg-white p-4 rounded-lg flex justify-between items-center shadow">
-                                <p>New Sit-In Rules Are Set</p>
-                                <span class="text-sm text-gray-500">1 hour ago</span>
-                            </div>
-                            <div class="bg-white p-4 rounded-lg flex justify-between items-center shadow">
-                                <p>New Sit-In Rules Are Set</p>
-                                <span class="text-sm text-gray-500">3 hours ago</span>
-                            </div>
+                            <?php if (!empty($announcements)): ?>
+                                <?php foreach ($announcements as $index => $announcement): ?>
+                                    <?php if ($index === 0): ?>
+                                        <!-- First announcement with special styling -->
+                                        <div class="bg-[#002044] text-white p-4 rounded-lg flex justify-between items-center">
+                                            <p><?php echo htmlspecialchars($announcement['title']); ?></p>
+                                            <span class="text-sm"><?php echo $announcement['timeAgo']; ?></span>
+                                        </div>
+                                    <?php else: ?>
+                                        <!-- Subsequent announcements with different styling -->
+                                        <div class="bg-white p-4 rounded-lg flex justify-between items-center shadow">
+                                            <p><?php echo htmlspecialchars($announcement['title']); ?></p>
+                                            <span class="text-sm text-gray-500"><?php echo $announcement['timeAgo']; ?></span>
+                                        </div>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <!-- If no announcements are found -->
+                                <div class="bg-[#002044] text-white p-4 rounded-lg flex justify-between items-center">
+                                    <p>No announcements found.</p>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -152,29 +234,43 @@ body {
         </div>
     </div>
 
+<!-- Pass PHP data to JavaScript -->
+<script>
+    const labUsageData = <?php echo json_encode($labUsageData); ?>;
+    console.log(labUsageData); // Debugging: Check the data in the browser console
+</script>
+
 <!-- Updated Chart.js Script -->
 <script>
     const ctx = document.getElementById('labUsageChart').getContext('2d');
-    
-    const usageData = {
-        7: [4, 6, 3, 5, 7, 2, 8],
-        14: [4, 6, 3, 5, 7, 2, 8, 5, 4, 6, 7, 3, 2, 5],
-        30: [5, 3, 4, 6, 7, 2, 8, 5, 4, 6, 7, 3, 2, 5, 7, 6, 5, 4, 3, 2, 6, 8, 5, 7, 3, 2, 4, 6, 5, 7]
+
+    // Prepare data for the chart
+    const prepareChartData = (range) => {
+        const labels = [];
+        const data = [];
+
+        // Get the last `range` days
+        const today = new Date();
+        for (let i = range - 1; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(today.getDate() - i);
+            const formattedDate = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+
+            labels.push(formattedDate);
+            data.push(labUsageData[formattedDate] ? labUsageData[formattedDate] : 0);
+        }
+
+        return { labels, data };
     };
 
-    const labelsData = {
-        7: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        14: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7', 'Day 8', 'Day 9', 'Day 10', 'Day 11', 'Day 12', 'Day 13', 'Day 14'],
-        30: Array.from({length: 30}, (_, i) => `Day ${i + 1}`)
-    };
-
+    // Initialize the chart
     let labUsageChart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: labelsData[7],
+            labels: prepareChartData(7).labels,
             datasets: [{
                 label: 'Hours Used',
-                data: usageData[7],
+                data: prepareChartData(7).data,
                 backgroundColor: 'rgba(59, 130, 246, 0.8)',
                 borderColor: 'rgba(59, 130, 246, 1)',
                 borderWidth: 1
@@ -184,16 +280,29 @@ body {
             responsive: true,
             scales: {
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Hours'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Date'
+                    }
                 }
             }
         }
     });
 
+    // Update the chart when the time range changes
     document.getElementById('timeRange').addEventListener('change', function () {
-        const selectedRange = this.value;
-        labUsageChart.data.labels = labelsData[selectedRange];
-        labUsageChart.data.datasets[0].data = usageData[selectedRange];
+        const selectedRange = parseInt(this.value);
+        const { labels, data } = prepareChartData(selectedRange);
+
+        labUsageChart.data.labels = labels;
+        labUsageChart.data.datasets[0].data = data;
         labUsageChart.update();
     });
 </script>

@@ -51,22 +51,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Get form data from JSON
     $room_number = $data['room_number'] ?? null;
-    $seat_number = $data['seat_number'] ?? null;
     $reservation_date = $data['reservation_date'] ?? null;
     $time_in = $data['time_in'] ?? null;
     $purpose = $data['purpose'] ?? null;
 
     // Validate input
-    if (!$room_number || !$seat_number || !$reservation_date || !$time_in || !$purpose) {
+    if (!$room_number || !$reservation_date || !$time_in || !$purpose) {
         echo json_encode(["error" => "All fields are required"]);
         exit();
     }
 
     // Insert reservation
-    $sql = "INSERT INTO reservations (idno, lastname, firstname, room_number, seat_number, reservation_date, time_in, purpose) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+    $sql = "INSERT INTO reservations (idno, lastname, firstname, room_number, reservation_date, time_in, purpose) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("isssisss", $idno, $lastname, $firstname, $room_number, $seat_number, $reservation_date, $time_in, $purpose);
+    $stmt->bind_param("issssss", $idno, $lastname, $firstname, $room_number, $reservation_date, $time_in, $purpose);
 
     if ($stmt->execute()) {
         // Convert time_in from 24-hour format to 12-hour format (e.g. 7:27 PM)
@@ -78,7 +77,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $confirmation .= "Room: {$room_number}\n";
         $confirmation .= "Date: {$reservation_date}\n";
         $confirmation .= "Time In: {$timeFormatted}\n";
-        $confirmation .= "Seat Number: {$seat_number}\n";
         $confirmation .= "Purpose: {$purpose}";
     
         echo json_encode(["success" => $confirmation]);
@@ -183,15 +181,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
 
                         <div class="mb-4">
-                            <label for="seatNumber" class="block text-sm font-medium text-gray-700">Seat Number</label>
-                            <select id="seatNumber" name="seat_number" class="w-full p-2 border rounded-lg">
-                                <?php for ($i = 1; $i <= 5; $i++): ?>
-                                    <option value="<?= $i ?>">Seat <?= $i ?></option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
-
-                        <div class="mb-4">
                             <label for="purpose" class="block text-sm font-medium text-gray-700">Purpose</label>
                             <textarea id="purpose" name="purpose" class="w-full p-2 border rounded-lg" rows="3" placeholder="Enter purpose of sit-in"></textarea>
                         </div>
@@ -249,11 +238,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         document.getElementById('reservationDetails').addEventListener('submit', (e) => {
             e.preventDefault();
 
-            const seatNumber = document.getElementById('seatNumber').value;
             const timeIn = document.getElementById('timeIn').value;
             const purpose = document.getElementById('purpose').value;
 
-            if (!selectedDate || !seatNumber || !timeIn || !purpose) {
+            if (!selectedDate || !timeIn || !purpose) {
                 alert("Please fill in all fields before confirming your reservation.");
                 return;
             }
@@ -264,7 +252,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     room_number: selectedRoom,
-                    seat_number: seatNumber,
                     reservation_date: selectedDate,
                     time_in: timeIn,
                     purpose: purpose
