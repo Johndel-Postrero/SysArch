@@ -6,6 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Assume $user is fetched from the database after verifying login credentials.
 $_SESSION['firstname'] = $user['firstname'];
+$_SESSION['middlename'] = $user['middlename'];
 $_SESSION['lastname'] = $user['lastname'];
 require __DIR__ . '/../config/db.php';
 
@@ -96,7 +97,7 @@ $conn->close();
                     ?>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' .$_SESSION['middlename'] . '. '. $_SESSION['lastname']); ?> </p>
+                    <p class="text-sm font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' .$_SESSION['middlename'] . ' '. $_SESSION['lastname']); ?> </p>
                     <p class="text-xs text-gray-500"><?php echo htmlspecialchars(ucfirst($role)); ?></p>
                 </div>
             </div>
@@ -139,7 +140,6 @@ $conn->close();
         });
     });
 });
-
 </script>
 </body>
 </html>

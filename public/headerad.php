@@ -17,7 +17,11 @@ $titles = [
     "sitin" => "Sit-In Rules and Regulations",
     "laboratory" => "Laboratory Rules and Regulations",
     "reservation" => "Reservations",
-    "history" => "Sit-in History"
+    "current_sit" => "Current Sit-In",
+    "day_sit" => "Current Sit-In Records",
+    "Cannouncement" => "Announcements",
+    "feedbackad" => "Feedback Report",
+    "generate" => "Generate Report"
 ];
 
 // Set the page title dynamically (default to 'Dashboard' if not found)
@@ -133,7 +137,7 @@ $conn->close();
                     ?>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' .$_SESSION['middlename'] . '. '. $_SESSION['lastname']); ?></p>
+                    <p class="text-sm font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' .$_SESSION['middlename'] . ' '. $_SESSION['lastname']); ?></p>
                     <p class="text-xs text-gray-500"><?php echo htmlspecialchars(ucfirst($_SESSION['role'] ?? 'Guest')); ?></p>
                 </div>
             </div>

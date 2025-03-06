@@ -80,23 +80,23 @@ body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; 
         <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="adminIndex.php">
             <i class="fas fa-home mr-3"></i> <span class="sidebar-text">Home</span>
         </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="Csitin.php">
+        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="current_sit.php">
             <i class="fas fa-chair mr-3"></i> <span class="sidebar-text">Sit-In</span>
         </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="students.php">
-            <i class="fas fa-users mr-3"></i> <span class="sidebar-text">Students</span>
-        </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="records.php">
+        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="day_sit.php">
             <i class="fas fa-file-alt mr-3"></i> <span class="sidebar-text">Sit-In Records</span>
         </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="report.php">
+        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="generate.php">
             <i class="fas fa-clipboard-list mr-3"></i> <span class="sidebar-text">Sit-In Report</span>
         </a>
         <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="Cannouncement.php">
             <i class="fas fa-bullhorn mr-3"></i> <span class="sidebar-text">Announcements</span>
         </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="feedback.php">
+        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="feedbackad.php">
             <i class="fas fa-user-check mr-3"></i> <span class="sidebar-text">Feedback Report</span>
+        </a>
+        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="students.php">
+            <i class="fas fa-users mr-3"></i> <span class="sidebar-text">Students</span>
         </a>
         <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="reservation.php">
             <i class="fas fa-calendar-alt mr-3"></i> <span class="sidebar-text">Reservations</span>

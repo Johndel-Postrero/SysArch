@@ -27,15 +27,13 @@ CREATE TABLE users (
 );
 
 
-
-
-CREATE TABLE reservations (
+CREATE TABLE sitin (
     id INT AUTO_INCREMENT PRIMARY KEY,
     idno INT NOT NULL,
-    room_number INT NOT NULL,
-    reservation_date DATE NOT NULL,
+    lab_number INT NOT NULL,
+    sitin_date DATE NOT NULL,
     time_in TIME NOT NULL,
-    time_out TIME NOT NULL,
+    time_out TIME NULL,
     purpose TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (idno) REFERENCES users(idno) ON DELETE CASCADE
@@ -52,3 +50,27 @@ CREATE TABLE announcements (
     FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE feedback (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL, -- Foreign key to link feedback to a user
+    sitin_id INT NOT NULL, -- Foreign key to link feedback to a sitin entry
+    message TEXT NOT NULL, -- The feedback message
+    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5), -- Star rating (1 to 5)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp of when the feedback was created
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, -- Link to the users table
+    FOREIGN KEY (sitin_id) REFERENCES sitin(id) ON DELETE CASCADE -- Link to the sitin table
+);
+
+CREATE TABLE reservation (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    idno INT NOT NULL,
+    lab_number INT NOT NULL,
+    reserve_date DATE NOT NULL,
+    time_in TIME NOT NULL,
+    time_out TIME NULL,
+    purpose TEXT NOT NULL,
+    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+    checked_in BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (idno) REFERENCES users(idno) ON DELETE CASCADE
+);
