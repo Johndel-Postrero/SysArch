@@ -9,7 +9,7 @@ $searchResults = [];
 if (isset($_GET['query']) && !empty($_GET['query'])) {
     $searchQuery = "%" . $_GET['query'] . "%";
 
-    $query = $conn->prepare("SELECT idno, firstname, middlename, lastname, email, session FROM users 
+    $query = $conn->prepare("SELECT idno, firstname, middlename, lastname, email, course, level, session FROM users 
     WHERE (idno LIKE ? OR firstname LIKE ? OR lastname LIKE ? 
     OR CONCAT(firstname, ' ', lastname) LIKE ? 
     OR CONCAT(firstname, ' ', middlename, ' ', lastname) LIKE ?) 
@@ -203,19 +203,23 @@ $conn->close();
                             <table class="min-w-full bg-white shadow-md rounded-lg">
                                 <thead>
                                     <tr class="bg-[#002044] text-white">
-                                        <th class="py-4 px-4 text-center">ID No</th>
-                                        <th class="py-4 px-4 text-center">First Name</th>
-                                        <th class="py-4 px-4 text-center">Last Name</th>
-                                        <th class="py-4 px-4 text-center">Email</th>
-                                        <th class="py-4 px-4 text-center">Action</th>
+                                        <th class="py-4 px-4 text-center">ID NUMBER</th>
+                                        <th class="py-4 px-4 text-center">FULL NAME</th>
+                                        <th class="py-4 px-4 text-center">COURSE</th>
+                                        <th class="py-4 px-4 text-center">LEVEL</th>
+                                        <th class="py-4 px-4 text-center">EMAIL</th>
+                                        <th class="py-4 px-4 text-center">SESSION</th>
+                                        <th class="py-4 px-4 text-center">ACTION</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($searchResults as $index => $user): ?>
                                         <tr class="<?= $index % 2 === 0 ? 'bg-gray-100' : 'bg-gray-200' ?>">
                                             <td class="py-4 px-4 text-center text-black"><?php echo htmlspecialchars($user['idno']); ?></td>
-                                            <td class="py-4 px-4 font-semibold text-center text-black"><?php echo htmlspecialchars($user['firstname']); ?></td>
-                                            <td class="py-4 px-4 text-center text-black"><?php echo htmlspecialchars($user['lastname']); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($user['firstname'] . ' ' . $user['middlename'] . ' ' . $user['lastname']); ?></td>
+                                            <td class="py-4 px-4 text-center text-black"><?php echo htmlspecialchars($user['course']); ?></td>
+                                            <td class="py-4 px-4 text-center text-black"><?php echo htmlspecialchars($user['level']); ?></td>
+                                            <td class="py-4 px-4 text-center text-black"><?php echo htmlspecialchars($user['session']); ?></td>
                                             <td class="py-4 px-4 text-center text-black"><?php echo htmlspecialchars($user['email']); ?></td>
                                             <td class="py-4 px-4 text-center">
                                                 <?php if ($user['isSitInned']): ?>

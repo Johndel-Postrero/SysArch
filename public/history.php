@@ -54,7 +54,8 @@ $sql = "SELECT sitin.id, sitin.idno, users.lastname, users.firstname, sitin.purp
         FROM sitin 
         JOIN users ON sitin.idno = users.idno
         LEFT JOIN feedback ON sitin.id = feedback.sitin_id AND feedback.user_id = '{$_SESSION['user_id']}'
-        WHERE sitin.time_out IS NOT NULL";
+        WHERE sitin.time_out IS NOT NULL
+        AND sitin.idno = '{$_SESSION['login_user']}'"; // Add this line to filter by the logged-in user
 
 $result = $conn->query($sql);
 
