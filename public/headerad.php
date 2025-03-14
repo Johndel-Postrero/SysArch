@@ -88,10 +88,19 @@ $conn->close();
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .header {
-            position: sticky;
-            top: 0;
-        }
+    /* Ensure the header is sticky and has a z-index */
+    .header {
+        position: sticky;
+        top: 0;
+        z-index: 100; /* Ensure the header stays above other content */
+        background-color: white; /* Add a background to avoid transparency issues */
+    }
+
+    /* Profile dropdown styling */
+    #profileDropdown {
+        position: absolute; /* Use absolute positioning */
+        z-index: 1000; /* Ensure it appears above other elements */
+    }
         @media (max-width: 570px) {
             .search-bar {
                 display: none;

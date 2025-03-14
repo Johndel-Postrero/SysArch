@@ -300,24 +300,10 @@ $conn->close();
                 `,
             });
         });
-                        // Entries per page functionality
-                        document.getElementById('entries').addEventListener('change', function() {
-        const selectedValue = parseInt(this.value); // Get the selected value (10, 25, or 50)
-        const rows = document.querySelectorAll('#sitinTable tbody tr'); // Get all table rows
-
-        rows.forEach((row, index) => {
-            if (index < selectedValue) {
-                row.style.display = ''; // Show rows up to the selected value
-            } else {
-                row.style.display = 'none'; // Hide the rest
-            }
-        });
-    });
-
     // Initialize table with default entries per page
     function initializeTable() {
         const defaultEntries = 5; // Default number of entries
-        const rows = document.querySelectorAll('#sitinTable tbody tr'); // Get all table rows
+        const rows = document.querySelectorAll('tbody tr'); // Get all table rows
 
         rows.forEach((row, index) => {
             if (index < defaultEntries) {
@@ -330,6 +316,20 @@ $conn->close();
 
     // Call the initialize function on page load
     initializeTable();
+
+    // Entries per page functionality
+    document.getElementById('entries').addEventListener('change', function() {
+        const selectedValue = parseInt(this.value); // Get the selected value (5, 10, 25, or 50)
+        const rows = document.querySelectorAll('tbody tr'); // Get all table rows
+
+        rows.forEach((row, index) => {
+            if (index < selectedValue) {
+                row.style.display = ''; // Show rows up to the selected value
+            } else {
+                row.style.display = 'none'; // Hide the rest
+            }
+        });
+    });
     </script>
 </body>
 </html>

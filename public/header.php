@@ -84,11 +84,20 @@ $conn->close();
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .header{
-            position:sticky;
-            top: 0;
-        }
-        
+    /* Ensure the header is sticky and has a z-index */
+    .header {
+        position: sticky;
+        top: 0;
+        z-index: 100; /* Ensure the header stays above other content */
+        background-color: white; /* Add a background to avoid transparency issues */
+    }
+
+    /* Profile dropdown styling */
+    #profileDropdown {
+        position: absolute; /* Use absolute positioning */
+        z-index: 1000; /* Ensure it appears above other elements */
+    }
+
     </style>
 </head>
 <body>
@@ -116,7 +125,7 @@ $conn->close();
                 </div>
             </div>
             <!-- Dropdown Menu -->
-            <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50">
+            <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-1000">
                 <a href="profile.php" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-200">
                     <i class="fas fa-user mr-3"></i> Profile
                 </a>

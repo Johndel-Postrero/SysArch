@@ -49,13 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submitFeedback'])) {
 }
 
 // Fetch data from the sitin table (or any other relevant table)
+$loggedInUserIdno = $_SESSION['idno']; // Assuming the user's idno is stored in the session
+
 $sql = "SELECT sitin.id, sitin.idno, users.lastname, users.firstname, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, sitin.created_at,
                feedback.id AS feedback_id
         FROM sitin 
         JOIN users ON sitin.idno = users.idno
         LEFT JOIN feedback ON sitin.id = feedback.sitin_id AND feedback.user_id = '{$_SESSION['user_id']}'
-        WHERE sitin.time_out IS NOT NULL
-        AND sitin.idno = '{$_SESSION['login_user']}'"; // Add this line to filter by the logged-in user
+        WHERE sitin.time_out IS NOT NULL AND sitin.idno = '$loggedInUserIdno'"; // Filter by logged-in user's idno
 
 $result = $conn->query($sql);
 
@@ -121,6 +122,7 @@ $conn->close();
         .sidebar:hover + .main-content {
             margin-left: 16rem; /* Adjust content when sidebar expands */
         }
+
         .modal {
             display: none;
             position: fixed;
@@ -327,8 +329,8 @@ $conn->close();
                 }
             });
         });
-                        // Entries per page functionality
-                        document.getElementById('entries').addEventListener('change', function() {
+        // Entries per page functionality
+        document.getElementById('entries').addEventListener('change', function() {
         const selectedValue = parseInt(this.value); // Get the selected value (10, 25, or 50)
         const rows = document.querySelectorAll('#sitinTable tbody tr'); // Get all table rows
 
