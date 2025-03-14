@@ -21,7 +21,8 @@ $titles = [
     "day_sit" => "Current Sit-In Records",
     "Cannouncement" => "Announcements",
     "feedbackad" => "Feedback Report",
-    "generate" => "Generate Report"
+    "generate" => "Generate Report",
+    "student" => "Student Records"
 ];
 
 // Set the page title dynamically (default to 'Dashboard' if not found)

@@ -196,7 +196,7 @@ $conn->close();
                                                 <form method="POST" action="current_sit.php">
                                                     <input type="hidden" name="logout_idno" value="<?php echo $sitin['idno']; ?>">
                                                     <button class="bg-red-500 text-white px-4 py-2 rounded logout-btn">
-                                                        Log Out
+                                                        Time Out
                                                     </button>
                                                 </form>
                                             </td>
