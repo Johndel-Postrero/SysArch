@@ -15,8 +15,14 @@ if (!isset($_SESSION['login_user'])) {
 // Database connection
 require __DIR__ . '/../config/db.php';
 
-// Fetch announcements from the database
-$query = "SELECT * FROM announcements ORDER BY created_at DESC";
+// Fetch announcements from the database along with admin details
+$query = "
+    SELECT a.*, u.firstname, u.middlename, u.lastname, u.profile_picture 
+    FROM announcements a
+    JOIN users u ON a.admin_id = u.id
+    WHERE u.role = 'admin'
+    ORDER BY a.created_at DESC
+";
 $result = $conn->query($query);
 ?>
 <html>
@@ -129,7 +135,7 @@ $result = $conn->query($query);
                                         ?>
                                     </div>
                                     <div class="ml-4">
-                                        <p class="font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' . $_SESSION['middlename'] . '. ' . $_SESSION['lastname']); ?> · Admin</p>
+                                        <p class="font-semibold"><?php echo htmlspecialchars($row['firstname'] . ' ' . $row['middlename'] . '. ' . $row['lastname']); ?> · Admin</p>
                                         <p class="text-sm text-gray-500"><?php echo date("M j, Y", strtotime($row['created_at'])); ?></p>
                                     </div>
                                 </div>
