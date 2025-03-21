@@ -241,16 +241,15 @@ $result = $conn->query($query);
                                     <div class="flex items-center mb-4">
                                         <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
                                             <?php 
-                                            if (isset($_SESSION['profile_picture'])) {
+                                            if (isset($_SESSION['profile_picture']) && file_exists(__DIR__ . '/../public/upload/' . $_SESSION['profile_picture'])) {
                                                 echo '<img src="upload/' . htmlspecialchars($_SESSION['profile_picture']) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
                                             } else {
                                                 echo $initials;
                                             }
                                             ?>
-
                                         </div>
                                         <div class="ml-4">
-                                            <p class="font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' . $_SESSION['middlename'] . '. ' . $_SESSION['lastname']); ?> · Admin</p>
+                                            <p class="font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' . $_SESSION['middlename'] . ' ' . $_SESSION['lastname']); ?> · Admin</p>
                                             <p class="text-sm text-gray-500"><?php echo date("M j, Y", strtotime($row['created_at'])); ?></p>
                                         </div>
                                     </div>

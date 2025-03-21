@@ -449,7 +449,7 @@ $conn->close();
     
     // Initialize table with default entries per page
     function initializeTable() {
-        const defaultEntries = 10; // Default number of entries
+        const defaultEntries = 5; // Default number of entries
         const rows = document.querySelectorAll('tbody tr'); // Get all table rows
 
         rows.forEach((row, index) => {
