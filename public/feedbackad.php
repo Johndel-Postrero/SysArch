@@ -48,6 +48,9 @@ $conn->close();
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/print-js/1.6.0/print.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <style>
         body {
             font-family: "Poppins-Regular";
@@ -119,14 +122,26 @@ $conn->close();
                                     <option value="50">50</option>
                                 </select>
                             </div>
-
-                            <!-- Print Button -->
+                        </div>
+                        <!-- Export Buttons -->
+                        <div class="flex space-x-2">
+                            <button id="exportCSV" class="bg-[#002044] text-white px-4 py-2 rounded-md flex items-center space-x-2">
+                                <i class="fas fa-file-csv"></i>
+                                <span>CSV</span>
+                            </button>
+                            <button id="exportExcel" class="bg-[#002044] text-white px-4 py-2 rounded-md flex items-center space-x-2">
+                                <i class="fas fa-file-excel"></i>
+                                <span>Excel</span>
+                            </button>
+                            <button id="exportPDF" class="bg-[#002044] text-white px-4 py-2 rounded-md flex items-center space-x-2">
+                                <i class="fas fa-file-pdf"></i>
+                                <span>PDF</span>
+                            </button>
                             <button id="printButton" class="bg-[#002044] text-white px-4 py-2 rounded-md flex items-center space-x-2">
                                 <i class="fas fa-print"></i>
                                 <span>Print</span>
                             </button>
                         </div>
-
                         <!-- Search and Sort (Right) -->
                         <div class="flex items-center space-x-4">
                             <div class="relative">
@@ -150,7 +165,26 @@ $conn->close();
                             </div>
                         </div>
                     </div>
-
+                    <!--<div class="flex justify-between items-center mb-4">
+                        <div class="flex space-x-2">
+                            <button id="exportCSV" class="bg-[#002044] text-white px-4 py-2 rounded-md flex items-center space-x-2">
+                                <i class="fas fa-file-csv"></i>
+                                <span>CSV</span>
+                            </button>
+                            <button id="exportExcel" class="bg-[#002044] text-white px-4 py-2 rounded-md flex items-center space-x-2">
+                                <i class="fas fa-file-excel"></i>
+                                <span>Excel</span>
+                            </button>
+                            <button id="exportPDF" class="bg-[#002044] text-white px-4 py-2 rounded-md flex items-center space-x-2">
+                                <i class="fas fa-file-pdf"></i>
+                                <span>PDF</span>
+                            </button>
+                            <button id="printButton" class="bg-[#002044] text-white px-4 py-2 rounded-md flex items-center space-x-2">
+                                <i class="fas fa-print"></i>
+                                <span>Print</span>
+                            </button>
+                        </div>
+                    </div>-->
                     <!-- Table -->
                     <div class="overflow-x-auto">
                         <table id="feedbackTable" class="min-w-full bg-white shadow-md rounded-lg">
@@ -171,7 +205,7 @@ $conn->close();
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($feedback['lab_number']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($feedback['created_at']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($feedback['message']); ?></td>
-                                            <td class="py-4 px-4 text-center">
+                                            <td class="py-4 px-4 text-center" data-rating="<?php echo $feedback['rating']; ?>">
                                                 <div class="star-rating">
                                                     <?php
                                                     $rating = $feedback['rating'];
@@ -275,7 +309,119 @@ $conn->close();
             tbody.innerHTML = ''; // Clear existing rows
             rows.forEach(row => tbody.appendChild(row));
         }
+        // Export to CSV
+        document.getElementById('exportCSV').addEventListener('click', function() {
+            const rows = document.querySelectorAll('#feedbackTable tbody tr');
+            let csvContent = "data:text/csv;charset=utf-8,";
+            const headers = Array.from(document.querySelectorAll('#feedbackTable thead th')).map(th => th.textContent).join(',');
+            csvContent += headers + "\n";
 
+            rows.forEach(row => {
+                if (row.style.display !== 'none') {
+                    const rowData = Array.from(row.querySelectorAll('td')).map((td, index) => {
+                        if (index === 4) { // Rating column (5th column, zero-based index 4)
+                            const rating = td.getAttribute('data-rating'); // Get the rating value from the data attribute
+                            return `${rating} out of 5`; // Format as "X out of 5"
+                        }
+                        return td.textContent;
+                    });
+                    csvContent += rowData.join(',') + "\n"; // Add row data to CSV content
+                }
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "feedback.csv");
+            document.body.appendChild(link);
+            link.click();
+        });
+        // Export to Excel
+        document.getElementById('exportExcel').addEventListener('click', function() {
+            const rows = document.querySelectorAll('#feedbackTable tbody tr');
+            const data = [];
+            const headers = Array.from(document.querySelectorAll('#feedbackTable thead th')).map(th => th.textContent);
+            data.push(headers);
+
+            rows.forEach(row => {
+                if (row.style.display !== 'none') {
+                    const rowData = Array.from(row.querySelectorAll('td')).map((td, index) => {
+                        if (index === 4) { // Rating column (5th column, zero-based index 4)
+                            const rating = td.getAttribute('data-rating'); // Get the rating value from the data attribute
+                            return `${rating} out of 5`; // Format as "X out of 5"
+                        }
+                        return td.textContent;
+                    });
+                    data.push(rowData);
+                }
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+            XLSX.writeFile(wb, "feedback.xlsx");
+        });
+
+        // Export to PDF
+        document.getElementById('exportPDF').addEventListener('click', function() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'pt', 'a4');
+
+            const headers = Array.from(document.querySelectorAll('#feedbackTable thead th')).map(th => th.textContent);
+            const rows = document.querySelectorAll('#feedbackTable tbody tr');
+            const data = [];
+
+            rows.forEach(row => {
+                if (row.style.display !== 'none') {
+                    const rowData = Array.from(row.querySelectorAll('td')).map((td, index) => {
+                        if (index === 4) { // Rating column (5th column, zero-based index 4)
+                            const rating = td.getAttribute('data-rating'); // Get the rating value from the data attribute
+                            return `${rating} out of 5`; // Format as "X out of 5"
+                        }
+                        return td.textContent;
+                    });
+                    data.push(rowData);
+                }
+            });
+
+            doc.autoTable({
+                head: [headers],
+                body: data,
+                startY: 20,
+                margin: { top: 20 },
+                styles: {
+                    fontSize: 10,
+                    cellPadding: 5,
+                    valign: 'middle',
+                    halign: 'center',
+                    lineColor: [0, 0, 0],
+                    lineWidth: 0.1,
+                },
+                headStyles: {
+                    fillColor: false,
+                    textColor: [0, 0, 0],
+                    fontStyle: 'bold',
+                    lineWidth: 0.1,
+                },
+                bodyStyles: {
+                    fillColor: false,
+                    textColor: [0, 0, 0],
+                    lineWidth: 0.1,
+                },
+                alternateRowStyles: {
+                    fillColor: false,
+                },
+                columnStyles: {
+                    0: { cellWidth: 'auto' },
+                    1: { cellWidth: 'auto' },
+                    2: { cellWidth: 'auto' },
+                    3: { cellWidth: 'auto' },
+                    4: { cellWidth: 'auto' },
+                },
+            });
+
+            doc.save("feedback.pdf");
+        });
         //print
         document.getElementById('printButton').addEventListener('click', function() {
             printJS({
@@ -300,9 +446,10 @@ $conn->close();
                 `,
             });
         });
+    
     // Initialize table with default entries per page
     function initializeTable() {
-        const defaultEntries = 5; // Default number of entries
+        const defaultEntries = 10; // Default number of entries
         const rows = document.querySelectorAll('tbody tr'); // Get all table rows
 
         rows.forEach((row, index) => {
