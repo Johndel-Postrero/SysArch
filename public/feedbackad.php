@@ -17,7 +17,7 @@ if (!isset($_SESSION['login_user'])) {
 require __DIR__ . '/../config/db.php';
 
 // Fetch feedback data from the feedback table
-$sql = "SELECT feedback.id, users.idno, users.lastname, users.firstname, sitin.lab_number, feedback.message, feedback.rating, feedback.created_at 
+$sql = "SELECT feedback.id, users.idno, users.lastname, users.firstname, users.middlename, users.course, users.level, sitin.time_in, sitin.time_out, sitin.lab_number, feedback.message, feedback.rating, feedback.created_at 
         FROM feedback 
         JOIN users ON feedback.user_id = users.id
         JOIN sitin ON feedback.sitin_id = sitin.id
@@ -30,7 +30,12 @@ if ($result->num_rows > 0) {
         $feedbackData[] = $row;
     }
 }
-
+$foulWords = [
+    "fuck you",
+    "badword2",
+    "badword3",
+    // Add more foul words here
+];
 $conn->close();
 ?>
 <!DOCTYPE html>
@@ -105,7 +110,7 @@ $conn->close();
             <!-- Include Header -->
             <?php include 'headerad.php'; ?>
             <div class="flex-1 p-6 flex flex-col items-center">
-                <div class="w-full max-w-6xl">
+                <div class="w-full max-w-[1350px]">
                     <!-- Controls (Entries, Search, Sort) -->
                     <div class="flex justify-between items-center mb-4">
                         <!-- Entries Selection and Print Button (Left) -->
@@ -191,9 +196,13 @@ $conn->close();
                             <thead>
                                 <tr class="bg-[#002044] text-white">
                                     <th class="py-4 px-4 text-center">ID NUMBER</th>
+                                    <th class="py-4 px-4 text-center">FULL NAME</th>
+                                    <th class="py-4 px-4 text-center">COURSE</th>
                                     <th class="py-4 px-4 text-center">LABORATORY</th>
                                     <th class="py-4 px-4 text-center">DATE</th>
-                                    <th class="py-4 px-4 text-center">MESSAGE</th>
+                                    <th class="py-4 px-4 text-center">TIME IN</th>
+                                    <th class="py-4 px-4 text-center">TIME OUT</th>
+                                    <th class="py-4 px-4 text-center max-w-[300px]">MESSAGE</th>
                                     <th class="py-4 px-4 text-center">RATING</th>
                                 </tr>
                             </thead>
@@ -202,9 +211,13 @@ $conn->close();
                                     <?php foreach ($feedbackData as $index => $feedback): ?>
                                         <tr class="<?php echo ($index % 2 === 0) ? 'bg-gray-100' : 'bg-gray-200'; ?>">
                                             <td class="py-4 px-4 font-semibold text-center"><?php echo htmlspecialchars($feedback['idno']); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($feedback['lastname']. ', ' . $feedback['firstname']. ' ' . $feedback['middlename'] ); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($feedback['course']. ' ' . $feedback['level']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($feedback['lab_number']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($feedback['created_at']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($feedback['message']); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('Y-m-d', strtotime($feedback['created_at']))); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('h:i:s A', strtotime($feedback['time_in']))); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('h:i:s A', strtotime($feedback['time_out']))); ?></td>
+                                            <td class="py-4 px-4 text-center max-w-[300px]"><?php echo htmlspecialchars($feedback['message']); ?></td>
                                             <td class="py-4 px-4 text-center" data-rating="<?php echo $feedback['rating']; ?>">
                                                 <div class="star-rating">
                                                     <?php
@@ -477,6 +490,23 @@ $conn->close();
             }
         });
     });
+    // Function to check for foul words
+function containsFoulWords($message, $foulWords) {
+    foreach ($foulWords as $word) {
+        if (stripos($message, $word) !== false) {
+            return true; // Foul word found
+        }
+    }
+    return false; // No foul words found
+}
+
+// Function to save a notification
+function saveNotification($message, $conn) {
+    $stmt = $conn->prepare("INSERT INTO notifications (message) VALUES (?)");
+    $stmt->bind_param("s", $message);
+    $stmt->execute();
+    $stmt->close();
+}
     </script>
 </body>
 </html>
