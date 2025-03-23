@@ -61,6 +61,13 @@ CREATE TABLE feedback (
     FOREIGN KEY (sitin_id) REFERENCES sitin(id) ON DELETE CASCADE -- Link to the sitin table
 );
 
+CREATE TABLE notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    message TEXT NOT NULL,
+    is_read TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE reservation (
     id INT AUTO_INCREMENT PRIMARY KEY,
     idno INT NOT NULL,

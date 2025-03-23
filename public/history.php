@@ -15,6 +15,24 @@ if (!isset($_SESSION['login_user'])) {
 // Include the database connection
 require __DIR__ . '/../config/db.php';
 
+// Function to check for foul words
+function containsFoulWords($message, $foulWords) {
+    foreach ($foulWords as $word) {
+        if (stripos($message, $word) !== false) {
+            return $word; // Return the foul word found
+        }
+    }
+    return false; // No foul words found
+}
+
+// Function to save a notification
+function saveNotification($message, $conn) {
+    $stmt = $conn->prepare("INSERT INTO notifications (message) VALUES (?)");
+    $stmt->bind_param("s", $message);
+    $stmt->execute();
+    $stmt->close();
+}
+
 // Handle feedback submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submitFeedback'])) {
     $userId = $_SESSION['user_id']; // Assuming the user ID is stored in the session
@@ -35,16 +53,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submitFeedback'])) {
         die("Invalid sitin_id: The provided sitin_id does not exist in the sitin table.");
     }
 
-    // Insert feedback into the database
-    $sql = "INSERT INTO feedback (user_id, sitin_id, message, rating) VALUES ('$userId', '$sitinId', '$message', '$rating')";
-    if ($conn->query($sql)) {
-        // Set a session variable for the success message
-        $_SESSION['feedback_success'] = true;
-        // Redirect to the same page to prevent form resubmission
-        header("Location: history.php");
-        exit();
+    // Define foul words
+    $foulWords = [
+        "fuck you",
+        "fuck",
+        "shit",
+        "gago",
+        "yawa",
+        "putang ina",
+        "tang ina",
+        "atay",
+        "giatay",
+        "pisti",
+        "minatay",
+        "puta",
+        "bogo"
+        // Add more foul words here
+    ];
+
+    // Check for foul words
+    $detectedFoulWord = containsFoulWords($message, $foulWords);
+
+    if ($detectedFoulWord) {
+        // Notify admin and handle foul word detection
+        $notificationMessage = "Foul language detected in feedback from id no: " . $_SESSION['idno'] . ". Detected word: " . $detectedFoulWord;
+        saveNotification($notificationMessage, $conn); // Save notification to the database
+
+        // Insert feedback into the database even if foul words are detected
+        $sql = "INSERT INTO feedback (user_id, sitin_id, message, rating) VALUES ('$userId', '$sitinId', '$message', '$rating')";
+        if ($conn->query($sql)) {
+            echo "<script>alert('Your feedback contains inappropriate language. Please revise your message.');</script>";
+            $_SESSION['feedback_success'] = true;
+            header("Location: history.php");
+            exit();
+        } else {
+            echo "<script>alert('Error submitting feedback: " . $conn->error . "');</script>";
+        }
     } else {
-        echo "<script>alert('Error submitting feedback: " . $conn->error . "');</script>";
+        // Insert feedback into the database if no foul words are detected
+        $sql = "INSERT INTO feedback (user_id, sitin_id, message, rating) VALUES ('$userId', '$sitinId', '$message', '$rating')";
+        if ($conn->query($sql)) {
+            $_SESSION['feedback_success'] = true;
+            header("Location: history.php");
+            exit();
+        } else {
+            echo "<script>alert('Error submitting feedback: " . $conn->error . "');</script>";
+        }
     }
 }
 
@@ -84,7 +138,7 @@ $conn->close();
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
     <style>
-                body {
+        body {
             font-family: "Poppins-Regular";
             color: #333;
             font-size: 16px;
@@ -329,171 +383,20 @@ $conn->close();
                 }
             });
         });
+
         // Entries per page functionality
         document.getElementById('entries').addEventListener('change', function() {
-        const selectedValue = parseInt(this.value); // Get the selected value (10, 25, or 50)
-        const rows = document.querySelectorAll('#sitinTable tbody tr'); // Get all table rows
+            const selectedValue = parseInt(this.value); // Get the selected value (10, 25, or 50)
+            const rows = document.querySelectorAll('#sitinTable tbody tr'); // Get all table rows
 
-        rows.forEach((row, index) => {
-            if (index < selectedValue) {
-                row.style.display = ''; // Show rows up to the selected value
-            } else {
-                row.style.display = 'none'; // Hide the rest
-            }
-        });
-    });
-    </script>
- <script>
-    // Initialize table with default entries per page
-    function initializeTable() {
-        const defaultEntries = 5; // Default number of entries
-        const rows = document.querySelectorAll('tbody tr'); // Get all table rows
-
-        rows.forEach((row, index) => {
-            if (index < defaultEntries) {
-                row.style.display = ''; // Show rows up to the default value
-            } else {
-                row.style.display = 'none'; // Hide the rest
-            }
-        });
-    }
-
-    // Call the initialize function on page load
-    initializeTable();
-
-    // Entries per page functionality
-    document.getElementById('entries').addEventListener('change', function() {
-        const selectedValue = parseInt(this.value); // Get the selected value (5, 10, 25, or 50)
-        const rows = document.querySelectorAll('tbody tr'); // Get all table rows
-
-        rows.forEach((row, index) => {
-            if (index < selectedValue) {
-                row.style.display = ''; // Show rows up to the selected value
-            } else {
-                row.style.display = 'none'; // Hide the rest
-            }
-        });
-    });
-
-    // Search functionality
-    document.getElementById('searchInput').addEventListener('input', function() {
-        const searchValue = this.value.toLowerCase(); // Get the search input value
-        const rows = document.querySelectorAll('tbody tr'); // Get all table rows
-
-        rows.forEach(row => {
-            const cells = row.querySelectorAll('td'); // Get all cells in the row
-            let match = false;
-
-            cells.forEach(cell => {
-                if (cell.textContent.toLowerCase().includes(searchValue)) {
-                    match = true;
+            rows.forEach((row, index) => {
+                if (index < selectedValue) {
+                    row.style.display = ''; // Show rows up to the selected value
+                } else {
+                    row.style.display = 'none'; // Hide the rest
                 }
             });
-
-            row.style.display = match ? '' : 'none'; // Show or hide the row based on the match
         });
-    });
-
-    // Sort functionality
-    const sortDropdown = document.getElementById('sortDropdown');
-    const sortButton = document.getElementById('sortButton');
-
-// Toggle dropdown visibility
-sortButton.addEventListener('click', function(event) {
-    event.stopPropagation(); // Stop event propagation
-    sortDropdown.classList.toggle('hidden');
-});
-
-// Close dropdown when clicking outside
-document.addEventListener('click', function(event) {
-    if (!sortDropdown.contains(event.target) && !sortButton.contains(event.target)) {
-        sortDropdown.classList.add('hidden');
-    }
-});
-
-    // Handle sort selection
-    sortDropdown.addEventListener('click', function(event) {
-        if (event.target.tagName === 'A') {
-            const sortType = event.target.getAttribute('data-sort');
-            sortTable(sortType);
-            sortDropdown.classList.add('hidden'); // Hide dropdown after selection
-        }
-    });
-
-    // Sort table function
-    function sortTable(sortType) {
-        const rows = Array.from(document.querySelectorAll('tbody tr'));
-
-        rows.sort((a, b) => {
-            const aValue = a.querySelector('td:nth-child(2)').textContent.toLowerCase(); // Sort by Purpose column
-            const bValue = b.querySelector('td:nth-child(2)').textContent.toLowerCase();
-
-            switch (sortType) {
-                case 'az':
-                    return aValue.localeCompare(bValue); // A-Z
-                case 'za':
-                    return bValue.localeCompare(aValue); // Z-A
-                case 'newest':
-                    return new Date(b.querySelector('td:nth-child(5)').textContent) - new Date(a.querySelector('td:nth-child(5)').textContent); // Newest
-                case 'oldest':
-                    return new Date(a.querySelector('td:nth-child(5)').textContent) - new Date(b.querySelector('td:nth-child(5)').textContent); // Oldest
-                default:
-                    return 0;
-            }
-        });
-
-        // Re-append sorted rows to the table
-        const tbody = document.querySelector('tbody');
-        tbody.innerHTML = ''; // Clear existing rows
-        rows.forEach(row => tbody.appendChild(row));
-    }
-
-// Filter functionality
-const filterDropdown = document.getElementById('filterDropdown');
-const filterButton = document.getElementById('filterButton');
-
-// Toggle dropdown visibility
-filterButton.addEventListener('click', function(event) {
-    event.stopPropagation(); // Stop event propagation
-    filterDropdown.classList.toggle('hidden');
-});
-
-// Close dropdown when clicking outside
-document.addEventListener('click', function(event) {
-    if (!filterDropdown.contains(event.target) && !filterButton.contains(event.target)) {
-        filterDropdown.classList.add('hidden');
-    }
-});
-
-    // Handle filter selection
-    filterDropdown.addEventListener('click', function(event) {
-        if (event.target.tagName === 'A') {
-            const filterType = event.target.getAttribute('data-filter');
-            filterTable(filterType);
-            filterDropdown.classList.add('hidden'); // Hide dropdown after selection
-        }
-    });
-
-    // Filter table function
-    function filterTable(filterType) {
-        const rows = document.querySelectorAll('tbody tr');
-
-        rows.forEach(row => {
-            const actionCell = row.querySelector('td:nth-child(6)').textContent.toLowerCase(); // Action column
-            const isDone = actionCell.includes('done');
-
-            switch (filterType) {
-                case 'done':
-                    row.style.display = isDone ? '' : 'none'; // Show only "Done" rows
-                    break;
-                case 'not-done':
-                    row.style.display = !isDone ? '' : 'none'; // Show only "Not Done" rows
-                    break;
-                default:
-                    row.style.display = ''; // Show all rows
-            }
-        });
-    }
-</script>
+    </script>
 </body>
 </html>
