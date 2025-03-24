@@ -30,12 +30,6 @@ if ($result->num_rows > 0) {
         $feedbackData[] = $row;
     }
 }
-$foulWords = [
-    "fuck you",
-    "badword2",
-    "badword3",
-    // Add more foul words here
-];
 $conn->close();
 ?>
 <!DOCTYPE html>
@@ -300,8 +294,8 @@ $conn->close();
             const rows = Array.from(feedbackTable.querySelectorAll('tbody tr'));
 
             rows.sort((a, b) => {
-                const aValue = a.querySelector('td:nth-child(4)').textContent.toLowerCase(); // Message column
-                const bValue = b.querySelector('td:nth-child(4)').textContent.toLowerCase();
+                const aValue = a.querySelector('td:nth-child(8)').textContent.toLowerCase(); // Message column
+                const bValue = b.querySelector('td:nth-child(8)').textContent.toLowerCase();
 
                 switch (sortType) {
                     case 'az':
@@ -309,9 +303,9 @@ $conn->close();
                     case 'za':
                         return bValue.localeCompare(aValue); // Z-A
                     case 'newest':
-                        return new Date(b.querySelector('td:nth-child(3)').textContent) - new Date(a.querySelector('td:nth-child(3)').textContent); // Newest
+                        return new Date(b.querySelector('td:nth-child(5)').textContent) - new Date(a.querySelector('td:nth-child(5)').textContent); // Newest
                     case 'oldest':
-                        return new Date(a.querySelector('td:nth-child(3)').textContent) - new Date(b.querySelector('td:nth-child(3)').textContent); // Oldest
+                        return new Date(a.querySelector('td:nth-child(5)').textContent) - new Date(b.querySelector('td:nth-child(5)').textContent); // Oldest
                     default:
                         return 0;
                 }
@@ -490,23 +484,7 @@ $conn->close();
             }
         });
     });
-    // Function to check for foul words
-function containsFoulWords($message, $foulWords) {
-    foreach ($foulWords as $word) {
-        if (stripos($message, $word) !== false) {
-            return true; // Foul word found
-        }
-    }
-    return false; // No foul words found
-}
 
-// Function to save a notification
-function saveNotification($message, $conn) {
-    $stmt = $conn->prepare("INSERT INTO notifications (message) VALUES (?)");
-    $stmt->bind_param("s", $message);
-    $stmt->execute();
-    $stmt->close();
-}
     </script>
 </body>
 </html>
