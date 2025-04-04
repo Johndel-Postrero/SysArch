@@ -68,16 +68,17 @@ CREATE TABLE notifications (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE reservation (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    idno INT NOT NULL,
-    lab_number INT NOT NULL,
-    reserve_date DATE NOT NULL,
-    time_in TIME NOT NULL,
-    time_out TIME NULL,
-    purpose TEXT NOT NULL,
-    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-    checked_in BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (idno) REFERENCES users(idno) ON DELETE CASCADE
-);
+CREATE TABLE `reservations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `idno` int(11) NOT NULL,
+  `lab_number` int(11) NOT NULL,
+  `reservation_date` date NOT NULL,
+  `time_in` time NOT NULL,
+  `purpose` varchar(255) NOT NULL,
+  `status` enum('pending','approved','declined') NOT NULL DEFAULT 'pending',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idno` (`idno`),
+  CONSTRAINT `reservations_ibfk_1` FOREIGN KEY (`idno`) REFERENCES `users` (`idno`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

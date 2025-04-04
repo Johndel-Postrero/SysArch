@@ -98,7 +98,7 @@ body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; 
         <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="student.php">
             <i class="fas fa-users mr-3"></i> <span class="sidebar-text">Students</span>
         </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="reservation.php">
+        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="reservationad.php">
             <i class="fas fa-calendar-alt mr-3"></i> <span class="sidebar-text">Reservations</span>
         </a>
         <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="logs.php">
