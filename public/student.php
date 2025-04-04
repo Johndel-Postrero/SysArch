@@ -28,13 +28,21 @@ if ($result->num_rows > 0) {
         $sitinData[] = $row;
     }
 }
-
+// Fetch available courses from the database
+$courses = [];
+$course_sql = "SELECT course_name FROM courses"; // Adjust table/column names if necessary
+$course_result = $conn->query($course_sql);
+if ($course_result && $course_result->num_rows > 0) {
+    while ($row = $course_result->fetch_assoc()) {
+        $courses[] = $row;
+    }
+}
 $conn->close();
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Current Sit-In</title>
+    <title>Student Records</title>
     <script>
         window.onpageshow = function(event) {
             if (event.persisted) {
@@ -165,6 +173,12 @@ $conn->close();
         .inner form { width: 100%; }
         .div-button1 { height: 51px; border-radius: 6px; border: 1px solid #951313; }
         .div-button2 { height: 51px; color: white; background-color: #7952b3; border-radius: 6px; }
+        #addCourse, #addLevel, #editCourse, #editLevel{
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+}
+
     </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased">
@@ -305,11 +319,14 @@ $conn->close();
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['level']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['email']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['session']); ?></td>
-                                            <td class="py-4 px-4 text-center flex align-center justify-center space-x-2">
-                                            <button onclick="openEditModal('<?php echo $sitin['idno']; ?>')" class="bg-blue-500 text-white px-2 py-2 rounded-md flex items-center space-x-2">
-    <i class="fas fa-pen"></i>
-</button>
-                                                <button onclick="deleteStudent('<?php echo $sitin['idno']; ?>')" class="bg-red-500 text-white px-2 py-2 rounded-md flex items-center space-x-2">
+                                            <td class="py-4 px-4 text-center flex align-center justify-center space-x-0.5">
+                                                <button onclick="openEditModal('<?php echo $sitin['idno']; ?>')" class=" text-blue-500 px-2 py-2 rounded-md flex items-center space-x-2">
+                                                    <i class="fas fa-pen"></i>
+                                                </button>
+                                                <button onclick="resetStudentSession('<?php echo $sitin['idno']; ?>')" class="text-yellow-500 px-2 py-2 rounded-md flex items-center space-x-2">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </button>
+                                                <button onclick="deleteStudent('<?php echo $sitin['idno']; ?>')" class="text-red-500 px-2 py-2 rounded-md flex items-center space-x-2">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                             </td>
@@ -322,6 +339,11 @@ $conn->close();
                                 <?php endif; ?>
                             </tbody>
                         </table>
+                        <!-- Pagination -->
+                        <div class="flex justify-between items-center mt-4">
+                            <div class="text-gray-600" id="paginationInfo"></div>
+                            <div class="flex space-x-2" id="paginationControls"></div>
+                        </div>
                     </div>
 <!-- Add Student Modal -->
 <div id="addStudentModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
@@ -349,17 +371,19 @@ $conn->close();
             </div>
             <div class="form-group">
                 <div class="form-wrapper" style="width: 50%; margin-right: 25px;">
-                    <select id="addCourse" name="course" class="course form-control" required>
-                        <option value="BSIT">BSIT</option>
-                        <option value="BSCS">BSCS</option>
-                        <option value="HM">HM</option>
-                        <option value="CRIM">CRIM</option>
-                        <option value="CBA">CBA</option>
+                    <!-- In the Add Student Modal -->
+                    <select id="addCourse" name="course" class="form-control" required>
+                        <option value="">Select Course</option>
+                        <?php foreach ($courses as $course): ?>
+                            <option value="<?php echo htmlspecialchars($course['course_name']); ?>">
+                                <?php echo htmlspecialchars($course['course_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                     <i class="zmdi zmdi-caret-down" style="font-size: 17px; bottom: 30px;"></i>
                 </div>
                 <div class="form-wrapper" style="width: 50%;">
-                    <select id="addLevel" name="level" class="level form-control" required>
+                    <select id="addLevel" name="level" class="form-control" required>
                         <option value="1">1</option>
                         <option value="2">2</option>
                         <option value="3">3</option>
@@ -410,17 +434,19 @@ $conn->close();
             </div>
             <div class="form-group">
                 <div class="form-wrapper" style="width: 50%; margin-right: 25px;">
-                    <select id="editCourse" name="course" class="course form-control">
-                        <option value="BSIT">BSIT</option>
-                        <option value="BSCS">BSCS</option>
-                        <option value="HM">HM</option>
-                        <option value="CRIM">CRIM</option>
-                        <option value="CBA">CBA</option>
+                    <!-- In the Edit Student Modal -->
+                    <select id="editCourse" name="course" class="form-control" required>
+                        <option value="">Select Course</option>
+                        <?php foreach ($courses as $course): ?>
+                            <option value="<?php echo htmlspecialchars($course['course_name']); ?>">
+                                <?php echo htmlspecialchars($course['course_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                     <i class="zmdi zmdi-caret-down" style="font-size: 17px; bottom: 30px;"></i>
                 </div>
                 <div class="form-wrapper" style="width: 50%;">
-                    <select id="editLevel" name="level" class="level form-control">
+                    <select id="editLevel" name="level" class="form-control">
                         <option value="1">1</option>
                         <option value="2">2</option>
                         <option value="3">3</option>
@@ -466,26 +492,7 @@ $conn->close();
         // Call the initialize function on page load
         initializeTable();
 
-        // Entries per page functionality
-        document.getElementById('entries').addEventListener('change', function() {
-            const selectedValue = this.value;
-            const rows = document.querySelectorAll('#sitinTable tbody tr');
 
-            if (selectedValue === "all") {
-                rows.forEach(row => {
-                    row.style.display = ''; // Show all rows
-                });
-            } else {
-                const numEntries = parseInt(selectedValue);
-                rows.forEach((row, index) => {
-                    if (index < numEntries) {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-            }
-        });
 
         // Search functionality
         document.getElementById('searchInput').addEventListener('input', function() {
@@ -591,168 +598,56 @@ $conn->close();
             }
         });
 
-        // Export to CSV
-        // Export to CSV
-        document.getElementById('exportCSV').addEventListener('click', function() {
-            const rows = document.querySelectorAll('#sitinTable tbody tr');
-            let csvContent = "data:text/csv;charset=utf-8,";
-            const headers = Array.from(document.querySelectorAll('#sitinTable thead th'))
-                .slice(0, -1) // Exclude the last column (Action)
-                .map(th => th.textContent)
-                .join(',');
-            csvContent += headers + "\n";
 
-            rows.forEach(row => {
-                if (row.style.display !== 'none') {
-                    const rowData = Array.from(row.querySelectorAll('td'))
-                        .slice(0, -1) // Exclude the last column (Action)
-                        .map(td => td.textContent)
-                        .join(',');
-                    csvContent += rowData + "\n";
-                }
-            });
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "student_records.csv");
-            document.body.appendChild(link);
-            link.click();
-        });
-
-        // Export to Excel
-        // Export to Excel
-        document.getElementById('exportExcel').addEventListener('click', function() {
-            const rows = document.querySelectorAll('#sitinTable tbody tr');
-            const data = [];
-            const headers = Array.from(document.querySelectorAll('#sitinTable thead th'))
-                .slice(0, -1) // Exclude the last column (Action)
-                .map(th => th.textContent);
-            data.push(headers);
-
-            rows.forEach(row => {
-                if (row.style.display !== 'none') {
-                    const rowData = Array.from(row.querySelectorAll('td'))
-                        .slice(0, -1) // Exclude the last column (Action)
-                        .map(td => td.textContent);
-                    data.push(rowData);
-                }
-            });
-
-            const ws = XLSX.utils.aoa_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-            XLSX.writeFile(wb, "student_records.xlsx");
-        });
-
-        // Export to PDF
-        // Export to PDF
-        document.getElementById('exportPDF').addEventListener('click', function() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('p', 'pt', 'a4');
-
-            const headers = Array.from(document.querySelectorAll('#sitinTable thead th'))
-                .slice(0, -1) // Exclude the last column (Action)
-                .map(th => th.textContent);
-            const rows = document.querySelectorAll('#sitinTable tbody tr');
-            const data = [];
-
-            rows.forEach(row => {
-                if (row.style.display !== 'none') {
-                    const rowData = Array.from(row.querySelectorAll('td'))
-                        .slice(0, -1) // Exclude the last column (Action)
-                        .map(td => td.textContent);
-                    data.push(rowData);
-                }
-            });
-
-            doc.autoTable({
-                head: [headers],
-                body: data,
-                startY: 20,
-                margin: { top: 20 },
-                styles: {
-                    fontSize: 10,
-                    cellPadding: 5,
-                    valign: 'middle',
-                    halign: 'center',
-                    lineColor: [0, 0, 0],
-                    lineWidth: 0.1,
-                },
-                headStyles: {
-                    fillColor: false,
-                    textColor: [0, 0, 0],
-                    fontStyle: 'bold',
-                    lineWidth: 0.1,
-                },
-                bodyStyles: {
-                    fillColor: false,
-                    textColor: [0, 0, 0],
-                    lineWidth: 0.1,
-                },
-                alternateRowStyles: {
-                    fillColor: false,
-                },
-                columnStyles: {
-                    0: { cellWidth: 'auto' },
-                    1: { cellWidth: 'auto' },
-                    2: { cellWidth: 'auto' },
-                    3: { cellWidth: 'auto' },
-                    4: { cellWidth: 'auto' },
-                    5: { cellWidth: 'auto' },
-                },
-            });
-
-            doc.save("student_records.pdf");
-        });
-
-        // Print Table
-        // Print Table
-        document.getElementById('printButton').addEventListener('click', function() {
-            // Clone the table to avoid modifying the original
-            const table = document.getElementById('sitinTable').cloneNode(true);
-
-            // Remove the last column (Action) from the cloned table
-            const rows = table.querySelectorAll('tr');
-            rows.forEach(row => {
-                const cells = row.querySelectorAll('td, th');
-                if (cells.length > 0) {
-                    row.removeChild(cells[cells.length - 1]); // Remove the last cell
-                }
-            });
-
-            // Use printJS to print the modified table
-            printJS({
-                printable: table,
-                type: 'html',
-                style: 'table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #000; padding: 8px; text-align: center; }'
-            });
-        });
-
-
-        // Reset Session Button
-        document.getElementById('resetSession').addEventListener('click', function() {
-            if (confirm("Are you sure you want to reset the session for all students?")) {
-                fetch('reset_session.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert("Session reset successfully!");
-                        location.reload(); // Reload the page to reflect changes
-                    } else {
-                        alert("Error resetting session: " + data.error);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
+// Reset Session for All Students
+document.getElementById('resetSession').addEventListener('click', function() {
+    if (confirm("Are you sure you want to reset the session for ALL students?")) {
+        fetch('reset_session.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({}) // Empty object means reset all
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert("Session reset successfully for all students!");
+                location.reload();
+            } else {
+                alert("Error resetting session: " + data.error);
             }
+        })
+        .catch(error => {
+            console.error('Error:', error);
         });
+    }
+});
+
+// Reset Session for a Specific Student
+function resetStudentSession(idno) {
+    if (confirm("Are you sure you want to reset this student's session?")) {
+        fetch('reset_session.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ idno: idno })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert("Session reset successfully for this student!");
+                location.reload();
+            } else {
+                alert("Error resetting session: " + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+}
 
         // Edit Student Modal Functions
  // Preview image on file select
@@ -933,6 +828,527 @@ document.getElementById("toggleEditPassword").addEventListener("click", function
         icon.classList.add("zmdi-lock"); // Change icon back to "lock"
     }
 });
-    </script>
+
+function getExportHeaderText() {
+    return [
+        "University of Cebu",
+        "College of Computer Studies",
+        "Computer Laboratory Sit-In Monitoring System Report"
+    ];
+}
+
+// Export to CSV with header
+document.getElementById('exportCSV').addEventListener('click', function() {
+    const rows = document.querySelectorAll('#sitinTable tbody tr');
+    let csvContent = "data:text/csv;charset=utf-8,";
+    
+    // Add header text
+    const headerText = getExportHeaderText();
+    headerText.forEach(line => {
+        csvContent += `"${line}"\n`;
+    });
+    csvContent += "\n"; // Add empty line after header
+    
+    // Add table headers
+    const headers = Array.from(document.querySelectorAll('#sitinTable thead th'))
+        .slice(0, -1) // Exclude the last column (Action)
+        .map(th => `"${th.textContent.replace(/"/g, '""')}"`)
+        .join(',');
+    csvContent += headers + "\n";
+
+    // Add table data
+    rows.forEach(row => {
+        if (row.style.display !== 'none') {
+            const rowData = Array.from(row.querySelectorAll('td'))
+                .slice(0, -1) // Exclude the last column (Action)
+                .map(td => `"${td.textContent.trim().replace(/"/g, '""')}"`)
+                .join(',');
+            csvContent += rowData + "\n";
+        }
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "student_records.csv");
+    document.body.appendChild(link);
+    link.click();
+});
+
+// Export to Excel with header
+document.getElementById('exportExcel').addEventListener('click', function() {
+    const rows = document.querySelectorAll('#sitinTable tbody tr');
+    const data = [];
+    
+    // Add header text
+    const headerText = getExportHeaderText();
+    headerText.forEach(line => {
+        data.push([line]);
+    });
+    data.push([]); // Empty row
+    
+    // Add table headers
+    const headers = Array.from(document.querySelectorAll('#sitinTable thead th'))
+        .slice(0, -1) // Exclude the last column (Action)
+        .map(th => th.textContent);
+    data.push(headers);
+
+    // Add table data
+    rows.forEach(row => {
+        if (row.style.display !== 'none') {
+            const rowData = Array.from(row.querySelectorAll('td'))
+                .slice(0, -1) // Exclude the last column (Action)
+                .map(td => td.textContent);
+            data.push(rowData);
+        }
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    
+    // Merge cells for header text to center them
+    ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: headers.length - 1 } }
+    ];
+    
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    XLSX.writeFile(wb, "student_records.xlsx");
+});
+
+// Export to PDF with header
+document.getElementById('exportPDF').addEventListener('click', function() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'pt', 'a4');
+    const headers = Array.from(document.querySelectorAll('#sitinTable thead th'))
+        .slice(0, -1) // Exclude the last column (Action)
+        .map(th => th.textContent);
+    const rows = document.querySelectorAll('#sitinTable tbody tr');
+    const data = [];
+
+    // Add header text
+    const headerText = [
+        "University of Cebu",
+        "College of Computer Studies",
+        "Student Records"
+    ];
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold'); 
+    doc.text(headerText[0], doc.internal.pageSize.width / 2, 30, { align: 'center' });
+    doc.text(headerText[1], doc.internal.pageSize.width / 2, 50, { align: 'center' });
+    doc.text(headerText[2], doc.internal.pageSize.width / 2, 70, { align: 'center' });
+    
+    // Prepare table data
+    rows.forEach(row => {
+        if (row.style.display !== 'none') {
+            const rowData = Array.from(row.querySelectorAll('td'))
+                .slice(0, -1) // Exclude the last column (Action)
+                .map(td => td.textContent);
+            data.push(rowData);
+        }
+    });
+
+    doc.autoTable({
+        head: [headers],
+        body: data,
+        startY: 90, // Start table below the header text
+        margin: { top: 20 },
+        styles: {
+            fontSize: 10,
+            cellPadding: 5,
+            valign: 'middle',
+            halign: 'center',
+            lineColor: [0, 0, 0],
+            lineWidth: 0.1,
+        },
+        headStyles: {
+            fillColor: [0, 32, 68],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            lineWidth: 0.1,
+        },
+        bodyStyles: {
+            fillColor: false,
+            textColor: [0, 0, 0],
+            lineWidth: 0.1,
+        },
+        alternateRowStyles: {
+            fillColor: false,
+        },
+        columnStyles: {
+            0: { cellWidth: 'auto' },
+            1: { cellWidth: 'auto' },
+            2: { cellWidth: 'auto' },
+            3: { cellWidth: 'auto' },
+            4: { cellWidth: 'auto' },
+            5: { cellWidth: 'auto' },
+        },
+    });
+
+    doc.save("student_records.pdf");
+});
+
+// Print functionality with header
+document.getElementById('printButton').addEventListener('click', function() {
+    const rows = Array.from(document.querySelectorAll('#sitinTable tbody tr'))
+        .filter(row => row.style.display !== 'none');
+    
+    // Create a temporary container
+    const tempDiv = document.createElement('div');
+    
+    // Add header
+    const headerText = [
+        "UNIVERSITY OF CEBU",
+        "College of Computer Studies",
+        "Student Records"
+    ];
+    
+    const headerDiv = document.createElement('div');
+    headerDiv.style.textAlign = 'center';
+    headerDiv.style.marginBottom = '20px';
+    
+    const title1 = document.createElement('h1');
+    title1.textContent = headerText[0];
+    title1.style.fontSize = '14px';
+    title1.style.fontWeight = 'bold';
+    title1.style.marginBottom = '5px';
+    headerDiv.appendChild(title1);
+    
+    const title2 = document.createElement('h2');
+    title2.textContent = headerText[1];
+    title2.style.fontSize = '14px';
+    title2.style.marginBottom = '5px';
+    headerDiv.appendChild(title2);
+    
+    const title3 = document.createElement('h3');
+    title3.textContent = headerText[2];
+    title3.style.fontSize = '14px';
+    title3.style.marginBottom = '5px';
+    headerDiv.appendChild(title3);
+    
+    tempDiv.appendChild(headerDiv);
+    
+    // Create table
+    const printTable = document.createElement('table');
+    printTable.style.width = '100%';
+    printTable.style.borderCollapse = 'collapse';
+    printTable.style.marginTop = '20px';
+    
+    // Table header
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    
+    const headers = [
+        "ID NUMBER", "FULL NAME", "COURSE", "LEVEL", 
+        "EMAIL", "SESSION"
+    ];
+    
+    headers.forEach(headerText => {
+        const th = document.createElement('th');
+        th.textContent = headerText;
+        th.style.border = '1px solid #000';
+        th.style.padding = '8px';
+        th.style.backgroundColor = '#002044';
+        th.style.color = 'white';
+        th.style.textAlign = 'center';
+        headerRow.appendChild(th);
+    });
+    
+    thead.appendChild(headerRow);
+    printTable.appendChild(thead);
+    
+    // Table body
+    const tbody = document.createElement('tbody');
+    
+    rows.forEach((row, index) => {
+        const cells = row.querySelectorAll('td');
+        const newRow = document.createElement('tr');
+        
+        newRow.style.backgroundColor = index % 2 === 0 ? '#f2f2f2' : '#ffffff';
+        
+        // ID Number
+        const idCell = document.createElement('td');
+        idCell.textContent = cells[0].textContent;
+        idCell.style.border = '1px solid #000';
+        idCell.style.padding = '8px';
+        idCell.style.textAlign = 'center';
+        newRow.appendChild(idCell);
+        
+        // Name
+        const nameCell = document.createElement('td');
+        nameCell.textContent = cells[1].textContent;
+        nameCell.style.border = '1px solid #000';
+        nameCell.style.padding = '8px';
+        nameCell.style.textAlign = 'center';
+        newRow.appendChild(nameCell);
+        
+        // Course
+        const courseCell = document.createElement('td');
+        courseCell.textContent = cells[2].textContent;
+        courseCell.style.border = '1px solid #000';
+        courseCell.style.padding = '8px';
+        courseCell.style.textAlign = 'center';
+        newRow.appendChild(courseCell);
+        
+        // Level
+        const levelCell = document.createElement('td');
+        levelCell.textContent = cells[3].textContent;
+        levelCell.style.border = '1px solid #000';
+        levelCell.style.padding = '8px';
+        levelCell.style.textAlign = 'center';
+        newRow.appendChild(levelCell);
+        
+        // Email
+        const emailCell = document.createElement('td');
+        emailCell.textContent = cells[4].textContent;
+        emailCell.style.border = '1px solid #000';
+        emailCell.style.padding = '8px';
+        emailCell.style.textAlign = 'center';
+        newRow.appendChild(emailCell);
+        
+        // Session
+        const sessionCell = document.createElement('td');
+        sessionCell.textContent = cells[5].textContent;
+        sessionCell.style.border = '1px solid #000';
+        sessionCell.style.padding = '8px';
+        sessionCell.style.textAlign = 'center';
+        newRow.appendChild(sessionCell);
+        
+        tbody.appendChild(newRow);
+    });
+    
+    printTable.appendChild(tbody);
+    tempDiv.appendChild(printTable);
+    
+    // Print using printJS
+    printJS({
+        printable: tempDiv.innerHTML,
+        type: 'raw-html',
+        css: [
+            'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css'
+        ],
+        style: `
+            @media print {
+                body { font-family: "Poppins-Regular", Arial, sans-serif; }
+                h1, h2, h3 { margin: 5px 0; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #000; padding: 8px; text-align: center; }
+                th { background-color: #002044 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                tr:nth-child(even) { background-color: #f2f2f2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+        `,
+        onLoadingEnd: function() {
+            tempDiv.remove();
+        }
+    });
+});
+
+</script>
+ 
+
+<script>
+// Global variables for pagination
+let currentPage = 1;
+let rowsPerPage = Infinity; // Default to "All" entries
+
+// Initialize the table when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize entries dropdown (set "All" as default)
+    const entriesDropdown = document.getElementById('entries');
+    entriesDropdown.value = 'all';
+    
+    // Set up event listeners
+    entriesDropdown.addEventListener('change', function() {
+        if (this.value === 'all') {
+            rowsPerPage = Infinity; // Show all rows
+        } else {
+            rowsPerPage = parseInt(this.value);
+        }
+        currentPage = 1;
+        updateTableVisibility();
+    });
+    
+    // Initialize search functionality
+    document.getElementById('searchInput').addEventListener('input', function() {
+        currentPage = 1;
+        updateTableVisibility();
+    });
+    
+    // Initialize filters
+    document.getElementById('courseFilter').addEventListener('change', function() {
+        currentPage = 1;
+        updateTableVisibility();
+    });
+    
+    document.getElementById('levelFilter').addEventListener('change', function() {
+        currentPage = 1;
+        updateTableVisibility();
+    });
+    
+    // Initial update
+    updateTableVisibility();
+});
+
+// Function to update table visibility with pagination
+// Function to update table visibility with pagination
+function updateTableVisibility() {
+    const searchValue = document.getElementById('searchInput').value.toLowerCase();
+    const courseFilter = document.getElementById('courseFilter').value.toLowerCase();
+    const levelFilter = document.getElementById('levelFilter').value.toLowerCase();
+    
+    const rows = document.querySelectorAll('#sitinTable tbody tr');
+    let visibleRows = [];
+    
+    // First pass: filter rows and count visible ones
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const rowData = {
+            idno: cells[0].textContent.toLowerCase(),
+            name: cells[1].textContent.toLowerCase(),
+            course: cells[2].textContent.toLowerCase(),
+            level: cells[3].textContent.toLowerCase(),
+            email: cells[4].textContent.toLowerCase(),
+            element: row
+        };
+        
+        const matchesSearch = searchValue === '' || 
+            rowData.idno.includes(searchValue) ||
+            rowData.name.includes(searchValue) ||
+            rowData.course.includes(searchValue) ||
+            rowData.level.includes(searchValue) ||
+            rowData.email.includes(searchValue);
+        
+        const matchesCourse = courseFilter === '' || rowData.course.includes(courseFilter);
+        const matchesLevel = levelFilter === '' || rowData.level.includes(levelFilter);
+        
+        if (matchesSearch && matchesCourse && matchesLevel) {
+            visibleRows.push(row);
+        }
+        row.style.display = 'none'; // Hide all rows initially
+    });
+    
+    // Calculate total pages
+    const totalPages = rowsPerPage === Infinity ? 1 : Math.ceil(visibleRows.length / rowsPerPage);
+    
+    // Show only rows for current page (or all if rowsPerPage is Infinity)
+    const startIndex = rowsPerPage === Infinity ? 0 : (currentPage - 1) * rowsPerPage;
+    const endIndex = rowsPerPage === Infinity ? visibleRows.length : startIndex + rowsPerPage;
+    
+    // Show all matching rows when "All" is selected
+    if (rowsPerPage === Infinity) {
+        visibleRows.forEach(row => {
+            row.style.display = '';
+        });
+    } else {
+        // Show only the rows for the current page
+        for (let i = startIndex; i < endIndex && i < visibleRows.length; i++) {
+            visibleRows[i].style.display = '';
+        }
+    }
+    
+    // Update pagination info
+    const startEntry = visibleRows.length === 0 ? 0 : startIndex + 1;
+    const endEntry = Math.min(endIndex, visibleRows.length);
+    document.getElementById('paginationInfo').textContent = 
+        `Showing ${startEntry} to ${endEntry} of ${visibleRows.length} entries`;
+    
+    // Update pagination controls (only show if not showing all entries)
+    if (rowsPerPage === Infinity) {
+        document.getElementById('paginationControls').innerHTML = '';
+    } else {
+        updatePaginationControls(totalPages);
+    }
+}
+
+// Function to update pagination controls
+// Replace the existing updatePaginationControls function in student.php with this:
+function updatePaginationControls(totalPages) {
+    const paginationControls = document.getElementById('paginationControls');
+    paginationControls.innerHTML = '';
+    
+    // Previous button
+    const prevButton = document.createElement('button');
+    prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+    prevButton.className = `px-3 py-1 rounded-md border ${currentPage === 1 ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+    prevButton.disabled = currentPage === 1;
+    prevButton.addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            updateTableVisibility();
+        }
+    });
+    paginationControls.appendChild(prevButton);
+    
+    // Page numbers
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    if (startPage > 1) {
+        const firstPageButton = document.createElement('button');
+        firstPageButton.textContent = '1';
+        firstPageButton.className = 'px-3 py-1 rounded-md border bg-white text-[#002044] hover:bg-gray-100';
+        firstPageButton.addEventListener('click', () => {
+            currentPage = 1;
+            updateTableVisibility();
+        });
+        paginationControls.appendChild(firstPageButton);
+        
+        if (startPage > 2) {
+            const ellipsis = document.createElement('span');
+            ellipsis.textContent = '...';
+            ellipsis.className = 'px-2 py-1';
+            paginationControls.appendChild(ellipsis);
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        const pageButton = document.createElement('button');
+        pageButton.textContent = i;
+        pageButton.className = `px-3 py-1 rounded-md border ${i === currentPage ? 'bg-[#002044] text-white' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+        pageButton.addEventListener('click', () => {
+            currentPage = i;
+            updateTableVisibility();
+        });
+        paginationControls.appendChild(pageButton);
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            const ellipsis = document.createElement('span');
+            ellipsis.textContent = '...';
+            ellipsis.className = 'px-2 py-1';
+            paginationControls.appendChild(ellipsis);
+        }
+        
+        const lastPageButton = document.createElement('button');
+        lastPageButton.textContent = totalPages;
+        lastPageButton.className = 'px-3 py-1 rounded-md border bg-white text-[#002044] hover:bg-gray-100';
+        lastPageButton.addEventListener('click', () => {
+            currentPage = totalPages;
+            updateTableVisibility();
+        });
+        paginationControls.appendChild(lastPageButton);
+    }
+    
+    // Next button
+    const nextButton = document.createElement('button');
+    nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
+    nextButton.className = `px-3 py-1 rounded-md border ${currentPage === totalPages ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+    nextButton.disabled = currentPage === totalPages;
+    nextButton.addEventListener('click', () => {
+        if (currentPage < totalPages) {
+            currentPage++;
+            updateTableVisibility();
+        }
+    });
+    paginationControls.appendChild(nextButton);
+}
+</script>
 </body>
 </html>

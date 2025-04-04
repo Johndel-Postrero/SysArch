@@ -12,13 +12,24 @@ if (!isset($_SESSION['login_user'])) {
 // Include the database connection
 require __DIR__ . '/../config/db.php';
 
-// Reset the session for all students
-$sql = "UPDATE users SET session = 30 WHERE role = 'student'";
-if ($conn->query($sql)) {
-    // Session reset successfully
+// Get the input data
+$input = json_decode(file_get_contents('php://input'), true);
+$idno = isset($input['idno']) ? $input['idno'] : null;
+
+if ($idno) {
+    // Reset session for a specific student
+    $stmt = $conn->prepare("UPDATE users SET session = 30 WHERE idno = ? AND role = 'student'");
+    $stmt->bind_param("s", $idno);
+    $result = $stmt->execute();
+    $stmt->close();
+} else {
+    // Reset session for all students
+    $result = $conn->query("UPDATE users SET session = 30 WHERE role = 'student'");
+}
+
+if ($result) {
     echo json_encode(['success' => true]);
 } else {
-    // Error occurred
     echo json_encode(['success' => false, 'error' => $conn->error]);
 }
 
