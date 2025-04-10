@@ -68,11 +68,15 @@ function updateUserSession($conn, &$firstname, &$middlename, &$lastname, &$profi
     }
 }
 
-// Function to get notifications from database
-function getNotifications($conn, $limit = 5) {
+// Function to get notifications from database (admin-specific)
+function getAdminNotifications($conn, $limit = 5) {
     $notifications = [];
     
-    $query = "SELECT id, message, is_read, created_at FROM notifications ORDER BY created_at DESC LIMIT ?";
+    $query = "SELECT id, message, is_read, created_at 
+              FROM notifications 
+              WHERE notification_type = 'admin'
+              ORDER BY created_at DESC 
+              LIMIT ?";
     $stmt = $conn->prepare($query);
     
     if ($stmt) {
@@ -90,11 +94,13 @@ function getNotifications($conn, $limit = 5) {
     return $notifications;
 }
 
-// Function to count unread notifications
-function countUnreadNotifications($conn) {
+// Function to count unread admin notifications
+function countUnreadAdminNotifications($conn) {
     $count = 0;
     
-    $query = "SELECT COUNT(*) as unread_count FROM notifications WHERE is_read = 0";
+    $query = "SELECT COUNT(*) as unread_count 
+              FROM notifications 
+              WHERE is_read = 0 AND notification_type = 'admin'";
     $result = $conn->query($query);
     
     if ($result && $result->num_rows > 0) {
@@ -159,8 +165,9 @@ $initials = "G"; // Default initials
 updateUserSession($conn, $firstname, $middlename, $lastname, $profile_picture, $role, $initials);
 
 // Get notifications
-$notifications = getNotifications($conn, 5); // Get last 5 notifications
-$unreadCount = countUnreadNotifications($conn);
+// Get notifications (only admin ones)
+$notifications = getAdminNotifications($conn, 5); // Get last 5 admin notifications
+$unreadCount = countUnreadAdminNotifications($conn);
 
 $conn->close();
 ?>

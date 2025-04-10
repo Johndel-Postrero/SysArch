@@ -16,10 +16,14 @@ if (!isset($_SESSION['login_user'])) {
 require __DIR__ . '/../config/db.php';
 
 // Fetch data from the sitin table
-$sql = "SELECT sitin.id, sitin.idno, users.lastname, users.firstname, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, sitin.created_at
+// Update the SQL query to join with rewards table
+$sql = "SELECT sitin.id, sitin.idno, users.lastname, users.firstname, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, sitin.created_at,
+        rewards.id AS reward_id
         FROM sitin 
         JOIN users ON sitin.idno = users.idno
-        WHERE sitin.time_out IS NOT NULL AND DATE(sitin.created_at) = CURDATE()";
+        LEFT JOIN rewards ON sitin.id = rewards.sitin_id
+        WHERE sitin.time_out IS NOT NULL AND DATE(sitin.created_at) = CURDATE()
+        ORDER BY sitin.created_at DESC";
 
 $result = $conn->query($sql);
 
@@ -184,6 +188,7 @@ $conn->close();
                                     <th class="py-4 px-4 text-center">LOGIN</th>
                                     <th class="py-4 px-4 text-center">LOGOUT</th>
                                     <th class="py-4 px-4 text-center">DATE</th>
+                                    <th class="py-4 px-4 text-center">ACTION</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -198,6 +203,18 @@ $conn->close();
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('h:i:s A', strtotime($sitin['time_in']))); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('h:i:s A', strtotime($sitin['time_out']))); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('Y-m-d', strtotime($sitin['created_at']))); ?></td>
+                                            <td class="py-4 px-4 text-center">
+                                                <?php if (empty($sitin['reward_id'])): ?>
+                                                    <button onclick="giveReward(<?php echo $sitin['id']; ?>, '<?php echo $sitin['idno']; ?>', '<?php echo $sitin['lastname']; ?>', '<?php echo $sitin['firstname']; ?>')" 
+                                                            class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded">
+                                                        Reward
+                                                    </button>
+                                                <?php else: ?>
+                                                    <button disabled class="bg-gray-300 text-white px-3 py-1 rounded">
+                                                        Rewarded
+                                                    </button>
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
@@ -365,6 +382,31 @@ $conn->close();
 
     // Call the initialize function on page load
     initializeTable();
+
+    function giveReward(sitinId, idno, lastname, firstname) {
+    if (confirm(`Give reward to ${lastname}, ${firstname} (ID: ${idno})?`)) {
+        fetch('give_reward.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `sitin_id=${sitinId}&idno=${idno}&lastname=${encodeURIComponent(lastname)}&firstname=${encodeURIComponent(firstname)}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Reward given successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while giving reward.');
+        });
+    }
+}
     </script>
 </body>
 </html>

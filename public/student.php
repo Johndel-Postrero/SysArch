@@ -17,9 +17,11 @@ if (!isset($_SESSION['login_user'])) {
 require __DIR__ . '/../config/db.php';
 
 // Fetch data from the users table for students
-$sql = "SELECT idno, lastname, firstname, username, middlename, course, level, email, session
-        FROM users
-        WHERE role = 'student'";
+$sql = "SELECT u.idno, u.lastname, u.firstname, u.username, u.middlename, u.course, u.level, u.email, u.session, COALESCE(SUM(r.points), 0) AS total_points 
+        FROM users u
+        LEFT JOIN rewards r ON u.idno = r.idno
+        WHERE u.role = 'student'
+        GROUP BY u.idno";
 $result = $conn->query($sql);
 
 $sitinData = [];
@@ -306,6 +308,7 @@ $conn->close();
                                     <th class="py-4 px-4 text-center">LEVEL</th>
                                     <th class="py-4 px-4 text-center">EMAIL</th>
                                     <th class="py-4 px-4 text-center">SESSION</th>
+                                    <th class="py-4 px-4 text-center">POINTS</th>
                                     <th class="py-4 px-4 text-center">ACTION</th>
                                 </tr>
                             </thead>
@@ -319,6 +322,7 @@ $conn->close();
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['level']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['email']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['session']); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['total_points']); ?></td>
                                             <td class="py-4 px-4 text-center flex align-center justify-center space-x-0.5">
                                                 <button onclick="openEditModal('<?php echo $sitin['idno']; ?>')" class=" text-blue-500 px-2 py-2 rounded-md flex items-center space-x-2">
                                                     <i class="fas fa-pen"></i>
@@ -1041,7 +1045,7 @@ document.getElementById('printButton').addEventListener('click', function() {
     
     const headers = [
         "ID NUMBER", "FULL NAME", "COURSE", "LEVEL", 
-        "EMAIL", "SESSION"
+        "EMAIL", "SESSION", "POINTS"
     ];
     
     headers.forEach(headerText => {
@@ -1114,6 +1118,14 @@ document.getElementById('printButton').addEventListener('click', function() {
         sessionCell.style.padding = '8px';
         sessionCell.style.textAlign = 'center';
         newRow.appendChild(sessionCell);
+
+        // Points
+        const pointsCell = document.createElement('td');
+        pointsCell.textContent = cells[6].textContent;
+        pointsCell.style.border = '1px solid #000';
+        pointsCell.style.padding = '8px';
+        pointsCell.style.textAlign = 'center';
+        newRow.appendChild(pointsCell);
         
         tbody.appendChild(newRow);
     });
@@ -1126,16 +1138,19 @@ document.getElementById('printButton').addEventListener('click', function() {
         printable: tempDiv.innerHTML,
         type: 'raw-html',
         css: [
-            'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css'
+            'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css',
+            'css/add.css' // Include your custom CSS if needed
         ],
         style: `
+            @page { size: auto; margin: 5mm; }
+            body { font-family: "Poppins-Regular", Arial, sans-serif; margin: 0; padding: 10px; }
+            h1, h2, h3 { margin: 5px 0; text-align: center; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+            th, td { border: 1px solid #000; padding: 6px; text-align: center; }
+            th { background-color: #002044 !important; color: white !important; -webkit-print-color-adjust: exact; }
+            tr:nth-child(even) { background-color: #f2f2f2 !important; -webkit-print-color-adjust: exact; }
             @media print {
-                body { font-family: "Poppins-Regular", Arial, sans-serif; }
-                h1, h2, h3 { margin: 5px 0; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th, td { border: 1px solid #000; padding: 8px; text-align: center; }
-                th { background-color: #002044 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                tr:nth-child(even) { background-color: #f2f2f2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                .no-print { display: none !important; }
             }
         `,
         onLoadingEnd: function() {
