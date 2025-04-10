@@ -16,16 +16,19 @@ if (!isset($_SESSION['login_user'])) {
 // Include the database connection
 require __DIR__ . '/../config/db.php';
 
-// Fetch session data for the logged-in user
+// Fetch user data including points
 $username = $_SESSION['login_user'];
-$query = $conn->prepare("SELECT session FROM users WHERE username = ?");
+$query = $conn->prepare("SELECT u.session, COALESCE(SUM(r.points), 0) AS total_points 
+                        FROM users u
+                        LEFT JOIN rewards r ON u.idno = r.idno
+                        WHERE u.username = ?");
 $query->bind_param("s", $username);
 $query->execute();
 $result = $query->get_result();
 $user = $result->fetch_assoc();
 
 $sessionsLeft = $user['session'];
-$sessionsUsed = 30 - $sessionsLeft; // Assuming the total sessions are 30
+$pointsAccumulated = $user['total_points']; // Get total points from rewards table
 
 $query->close();
 
@@ -167,7 +170,7 @@ $conn->close();
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- Left Column: Sessions and Lab Usage -->
                     <div class="md:col-span-2 space-y-6">
-                        <div class="grid grid-cols-2 gap-6">
+                     <div class="grid grid-cols-2 gap-6">
                             <!-- Sessions Left -->
                             <div class="bg-[#002044] text-white p-4 rounded-lg flex items-center justify-between h-24">
                                 <div>
@@ -176,13 +179,13 @@ $conn->close();
                                 </div>
                                 <i class="fas fa-calendar-alt text-3xl"></i>
                             </div>
-                            <!-- Sessions Used -->
+                            <!-- Points Accumulated -->
                             <div class="bg-white p-4 rounded-lg flex items-center justify-between shadow h-24">
                                 <div>
-                                    <p class="text-3xl font-semibold"><?php echo $sessionsUsed; ?></p>
-                                    <p>Sessions Used</p>
+                                    <p class="text-3xl font-semibold"><?php echo $pointsAccumulated; ?></p>
+                                    <p>Points Accumulated</p>
                                 </div>
-                                <i class="fas fa-calendar-alt text-3xl text-gray-500"></i>
+                                <i class="fas fa-award text-3xl text-yellow-500"></i> <!-- Changed icon to star -->
                             </div>
                         </div>
                         <!-- Lab Usage -->

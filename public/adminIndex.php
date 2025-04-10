@@ -128,7 +128,7 @@ $conn->close();
         }
         .chart#sitinsPerLabChartContainer {
             width: 40%; /* Wider width for bar chart */
-            height: 550px; /* Increased height for bar chart */
+            height: 450px; /* Increased height for bar chart */
         }
     </style>
 </head>

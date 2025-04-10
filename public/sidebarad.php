@@ -35,6 +35,7 @@ body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; 
     }
     .sidebar-text {
         display: none;
+        margin-bottom: 0;
     }
     .sidebar a {
         display: flex;
@@ -76,34 +77,82 @@ body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; 
 <div class="sidebar bg-[#002044] text-white w-300 hover:w-100 flex flex-col items-center py-8 transition-all duration-300">
     <img alt="CCS Sit-In Monitoring System Logo" class="mb-4" height="70" src="inc/CCS_LOGO.png" width="70"/>
     <h1 class="text-center text-sm sidebar-text">CCS Sit-In Monitoring System</h1>
-    <nav class="mt-10 w-full">
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="adminIndex.php">
-            <i class="fas fa-home mr-3"></i> <span class="sidebar-text">Home</span>
+    
+    <nav class="mt-10 w-full space-y-1">
+        <!-- Dashboard -->
+        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors" href="adminIndex.php">
+            <i class="fas fa-tachometer-alt mr-3"></i> 
+            <span class="sidebar-text">Dashboard</span>
         </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="current_sit.php">
-            <i class="fas fa-chair mr-3"></i> <span class="sidebar-text">Sit-In</span>
+        
+        <!-- Reservations (Highlighted) -->
+        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors bg-blue-800/30" href="reservationad.php">
+            <i class="fas fa-calendar-check mr-3"></i> 
+            <span class="sidebar-text">Reservations</span>
         </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="day_sit.php">
-            <i class="fas fa-file-alt mr-3"></i> <span class="sidebar-text">Sit-In Records</span>
+        
+        <!-- Sit-In Management -->
+        <div class="dropdown group">
+            <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors">
+                <i class="fas fa-chair mr-3"></i> 
+                <span class="sidebar-text">Sit-In</span>
+                <i class="fas fa-chevron-down ml-auto sidebar-text text-xs transform group-hover:rotate-180 transition-transform"></i>
+            </a>
+            <div class="dropdown-content pl-2 mt-1">
+                <a href="current_sit.php" class="flex items-center py-2 px-4 text-white hover:bg-blue-600 rounded-lg mx-2 text-sm">
+                    <i class="fas fa-eye mr-3"></i> Current Sit-In
+                </a>
+                <a href="day_sit.php" class="flex items-center py-2 px-4 text-white hover:bg-blue-600 rounded-lg mx-2 text-sm">
+                    <i class="fas fa-archive mr-3"></i> Records
+                </a>
+            </div>
+        </div>
+        
+        <!-- Resources -->
+        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors" href="resourcesad.php">
+            <i class="fas fa-boxes mr-3"></i> 
+            <span class="sidebar-text">Resources</span>
         </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="generate.php">
-            <i class="fas fa-clipboard-list mr-3"></i> <span class="sidebar-text">Generate Report</span>
+        
+        <!-- Reports & Analytics -->
+        <div class="dropdown group">
+            <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors">
+                <i class="fas fa-chart-pie mr-3"></i> 
+                <span class="sidebar-text">Analytics</span>
+                <i class="fas fa-chevron-down ml-auto sidebar-text text-xs transform group-hover:rotate-180 transition-transform"></i>
+            </a>
+            <div class="dropdown-content pl-2 mt-1">
+                <a href="generate.php" class="flex items-center py-2 px-4 text-white hover:bg-blue-600 rounded-lg mx-2 text-sm">
+                    <i class="fas fa-file-export mr-3"></i> Generate Reports
+                </a>
+                <a href="leaderboard.php" class="flex items-center py-2 px-4 text-white hover:bg-blue-600 rounded-lg mx-2 text-sm">
+                    <i class="fas fa-trophy mr-3"></i> Leaderboard
+                </a>
+            </div>
+        </div>
+        
+        <!-- Student Management -->
+        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors" href="student.php">
+            <i class="fas fa-user-graduate mr-3"></i> 
+            <span class="sidebar-text">Students</span>
         </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="Cannouncement.php">
-            <i class="fas fa-bullhorn mr-3"></i> <span class="sidebar-text">Announcements</span>
-        </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="feedbackad.php">
-            <i class="fas fa-user-check mr-3"></i> <span class="sidebar-text">Feedback Report</span>
-        </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded w-full" href="student.php">
-            <i class="fas fa-users mr-3"></i> <span class="sidebar-text">Students</span>
-        </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="reservationad.php">
-            <i class="fas fa-calendar-alt mr-3"></i> <span class="sidebar-text">Reservations</span>
-        </a>
-        <a class="flex items-center py-2 px-4 text-white hover:bg-blue-700 rounded mt-2 w-full" href="logs.php">
-            <i class="fas fa-clock mr-3"></i> <span class="sidebar-text">Logs</span>
-        </a>
+        
+        <!-- Communication -->
+        <div class="dropdown group">
+            <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors">
+                <i class="fas fa-comments mr-3"></i> 
+                <span class="sidebar-text">Communication</span>
+                <i class="fas fa-chevron-down ml-auto sidebar-text text-xs transform group-hover:rotate-180 transition-transform"></i>
+            </a>
+            <div class="dropdown-content pl-2 mt-1">
+                <a href="Cannouncement.php" class="flex items-center py-2 px-4 text-white hover:bg-blue-600 rounded-lg mx-2 text-sm">
+                    <i class="fas fa-bullhorn mr-3"></i> Announcements
+                </a>
+                <a href="feedbackad.php" class="flex items-center py-2 px-4 text-white hover:bg-blue-600 rounded-lg mx-2 text-sm">
+                    <i class="fas fa-comment-dots mr-3"></i> Feedback
+                </a>
+            </div>
+        </div>
     </nav>
 </div>
 </html>

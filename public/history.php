@@ -26,8 +26,9 @@ function containsFoulWords($message, $foulWords) {
 }
 
 // Function to save a notification
-function saveNotification($message, $conn) {
-    $stmt = $conn->prepare("INSERT INTO notifications (message) VALUES (?)");
+// Function to save a notification specifically for admins
+function saveAdminNotification($message, $conn) {
+    $stmt = $conn->prepare("INSERT INTO notifications (message, notification_type) VALUES (?, 'admin')");
     $stmt->bind_param("s", $message);
     $stmt->execute();
     $stmt->close();
@@ -55,29 +56,154 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submitFeedback'])) {
 
     // Define foul words
     $foulWords = [
+        //Tagalog
+        "putang ina",
+        "putangina",
+        "tang ina",
+        "tangina",
+        "tang ina mo",
+        "tangina mo",
+        "puta",
+        "pota",
+        "gago",
+        "gaga",
+        "bobo",
+        "boba",
+        "ulol",
+        "ulul",
+        "tarantado",
+        "tanga",
+        "tengene",
+        "bwisit",
+        "bwisit ka",
+        "leche",
+        "letse",
+        "lintik",
+        "punyeta",
+        "pakyu",
+        "pakyo",
+        "pakshet",
+        "putragis",
+        "putang inamo",
+        "putangina mo",
+        "hayop",
+        "ulol",
+        "pucha",
+        "pakshet",
+        "pakyu",
+
+        // Mispelled versions of existing words
+        "ptang ina",
+        "ptangina",
+        "put@ng in@",
+        "put@ngin@",
+        "putang1na",
+        "putang!na",
+        "tang ina mo",
+        "tang1na",
+        "t@ng in@",
+        "t@ngin@",
+        "tangena",
+        "tang1n@ mo",
+        "put@",
+        "p0ta",
+        "put4",
+        "putah",
+        "g@go",
+        "g@ga",
+        "gag0",
+        "g@gu",
+        "b0b0",
+        "b0ba",
+        "bub0",
+        "bubu",
+        "ul0l",
+        "u1ol",
+        "ulul",
+        "tarantadu",
+        "tarantad0",
+        "t@rantado",
+        "tanga mo",
+        "tengene",
+        "teng3n3",
+        "t3ng3n3",
+        "bwisit",
+        "bw1s1t",
+        "bwesit",
+        "bwiset",
+        "lech3",
+        "letse",
+        "l3tse",
+        "lint1k",
+        "lint!k",
+        "punyeta",
+        "pnyeta",
+        "p@nyeta",
+        "pakyu",
+        "p@kyu",
+        "pakyo",
+        "p@kyo",
+        "pakshet",
+        "p@kshet",
+        "paksyet",
+        "putragis",
+        "putrag!s",
+        "putrag1s",
+        "putang inamo",
+        "putang1namo",
+        "put@nginamo",
+        "hayop",
+        "h@yop",
+        "hay0p",
+        "ul0l",
+        "ulul",
+        "pucha",
+        "puch@",
+        "puche",
+        "pakshet",
+        "p@kshet",
+        "pakyu",
+        "p@kyu",
+
+        //Bisaya
+        "giatay",
+        "atay",
+        "minatay",
+        "pisti",
+        "piste",
+        "yawa",
+        "yawaa",
+        "buang",
+        "buanga",
+        "tanga",
+        "pisting yawa",
+
+        //English 
+        "f you",
         "fuck you",
         "fuck",
         "shit",
-        "gago",
-        "yawa",
-        "putang ina",
-        "tang ina",
-        "atay",
-        "giatay",
-        "pisti",
-        "minatay",
-        "puta",
-        "bogo"
-        // Add more foul words here
-    ];
+        "bitch", 
+        "motherfucker",
+        "asshole",
+        "nigger",
+        "dipshit",
+        "nigga",
+        "niga".
+        "bulshit",
+        "fucker"
 
+    ];
+        
+        
     // Check for foul words
     $detectedFoulWord = containsFoulWords($message, $foulWords);
 
     if ($detectedFoulWord) {
         // Notify admin and handle foul word detection
-        $notificationMessage = "Foul language detected in feedback from id no: " . $_SESSION['idno'] . ". Detected word: " . $detectedFoulWord;
-        saveNotification($notificationMessage, $conn); // Save notification to the database
+    // Notify admin and handle foul word detection
+    $notificationMessage = "Foul language detected in feedback from id no: " . $_SESSION['idno'] . ". Detected word: " . $detectedFoulWord;
+    saveAdminNotification($notificationMessage, $conn); // Save as admin notification
 
         // Insert feedback into the database even if foul words are detected
         $sql = "INSERT INTO feedback (user_id, sitin_id, message, rating) VALUES ('$userId', '$sitinId', '$message', '$rating')";

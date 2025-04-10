@@ -67,6 +67,10 @@ CREATE TABLE notifications (
     is_read TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE notifications 
+ADD COLUMN user_id INT NULL,
+ADD COLUMN notification_type ENUM('student', 'admin') NOT NULL DEFAULT 'student',
+ADD FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 CREATE TABLE `reservations` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -82,3 +86,37 @@ CREATE TABLE `reservations` (
   KEY `idno` (`idno`),
   CONSTRAINT `reservations_ibfk_1` FOREIGN KEY (`idno`) REFERENCES `users` (`idno`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Resources table
+CREATE TABLE `resources` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `admin_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `file_name` varchar(255) DEFAULT NULL,
+  `file_size` int(11) DEFAULT NULL,
+  `file_type` varchar(50) DEFAULT NULL,
+  `is_folder` tinyint(1) DEFAULT 0,
+  `parent_id` int(11) DEFAULT NULL COMMENT 'For subfolders',
+  `uploaded_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `admin_id` (`admin_id`),
+  KEY `parent_id` (`parent_id`),
+  CONSTRAINT `resources_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `resources_ibfk_2` FOREIGN KEY (`parent_id`) REFERENCES `resources` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE rewards (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    idno INT NOT NULL,
+    lastname VARCHAR(50) NOT NULL,
+    firstname VARCHAR(50) NOT NULL,
+    points INT DEFAULT 1,
+    sitin_id INT NOT NULL,
+    rewarded_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (idno) REFERENCES users(idno) ON DELETE CASCADE,
+    FOREIGN KEY (sitin_id) REFERENCES sitin(id) ON DELETE CASCADE,
+    FOREIGN KEY (rewarded_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+ALTER TABLE rewards ADD COLUMN sitin_id INT;
