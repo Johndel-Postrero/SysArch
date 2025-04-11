@@ -143,26 +143,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <script src="https://cdn.tailwindcss.com"></script>
   <title>Profile Settings</title>
   <style>
-    body { font-family: "Poppins-Regular"; color: #333; font-size: 14px; margin: 0; }
-    .sidebar { width: 5rem; transition: all 0.3s ease-in-out; }
-    .sidebar:hover { width: 16rem; }
-    .sidebar:hover .sidebar-text { display: inline; }
-    .sidebar-text { display: none; }
-    .sidebar a { display: flex; align-items: center; justify-content: center; padding: 1rem; }
-    .sidebar:hover a { justify-content: flex-start; }
-    .sidebar i { font-size: 1.5rem; }
-    .dropdown-content { display: none; margin-left: 2rem; }
-    .dropdown:hover .dropdown-content { display: block; }
-    .wrapper { min-height: 0; margin-top: 30px; }
-    .wrapper::before { background: none; }
-    .inner form { width: 100%; margin: 40px; padding-top: 0; }
-    .inner { padding: 0; }
-    .div-button1 { height: 51px; border-radius: 6px; border: 1px solid #951313; }
-    .div-button2 { height: 51px; color: white; background-color: #7952b3; border-radius: 6px; }
-    .form-control::placeholder { font-size: 15px; }
-    body { margin: 0; }
+    input::placeholder {
+    font-family: poppins-regular !important; /* Adjust the font family */
+    font-size: 16px !important; /* Adjust the size as needed */
+}
+i.fas.fa-chevron-down.ml-auto.sidebar-text.text-xs.transform.group-hover\:rotate-180.transition-transform {
+    font-size: 12px !important;
+}
+    body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; }
+    .sidebar {
+            width: 5rem;
+            transition: all 0.3s ease-in-out;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow-y: auto;
+            scrollbar-width: none;
+        }
+        .sidebar::-webkit-scrollbar {
+            display: none;
+        }
+        .sidebar:hover {
+            width: 16rem;
+        }
+        .sidebar:hover .sidebar-text {
+            display: inline;
+        }
+        .sidebar-text {
+            display: none;
+        }
+        .sidebar a {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            transition: all 0.2s ease;
+        }
+        .sidebar:hover a {
+            justify-content: flex-start;
+        }
+        .sidebar i {
+            font-size: 1.25rem;
+            min-width: 1.5rem;
+            text-align: center;
+        }
+        .dropdown-content {
+            display: none;
+            margin-left: 1.5rem;
+        }
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+        .sidebar nav {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+    .inner form { width: 100%; }
+    .sidebar i { font-size: 16px !important; }
     .main-content { margin-left: 5rem; transition: margin-left 0.3s ease-in-out; }
     .sidebar:hover + .main-content { margin-left: 16rem; }
+    .div-button1 { height: 51px; border-radius: 6px; border: 1px solid #951313; }
+    .div-button2 { height: 51px; color: white; background-color: #7952b3; border-radius: 6px; }
   </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased">

@@ -22,7 +22,9 @@ $titles = [
     "Cannouncement" => "Announcements",
     "feedbackad" => "Feedback Report",
     "generate" => "Generate Report",
-    "student" => "Student Records"
+    "student" => "Student Records",
+    "resourcesad" => "Resources",
+    "leaderboard" => "Leaderboard"
 ];
 
 // Set the page title dynamically (default to 'Dashboard' if not found)

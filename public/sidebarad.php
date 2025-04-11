@@ -86,7 +86,7 @@ body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; 
         </a>
         
         <!-- Reservations (Highlighted) -->
-        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors bg-blue-800/30" href="reservationad.php">
+        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors" href="reservationad.php">
             <i class="fas fa-calendar-check mr-3"></i> 
             <span class="sidebar-text">Reservations</span>
         </a>

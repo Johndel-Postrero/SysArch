@@ -553,7 +553,7 @@ function getInitials($firstname, $lastname) {
                                     <div class="podium-avatar-container">
                                         <?php if (isset($topUsers[1])): ?>
                                             <?php if ($topUsers[1]['profile_picture'] && $topUsers[1]['profile_picture'] != 'default-profile.png'): ?>
-                                                <img src="../public/upload/<?php echo htmlspecialchars($topUsers[1]['profile_picture']); ?>" 
+                                                <img src="upload/<?php echo htmlspecialchars($topUsers[1]['profile_picture']); ?>" 
                                                      alt="<?php echo htmlspecialchars($topUsers[1]['firstname']); ?>" 
                                                      class="podium-avatar">
                                             <?php else: ?>
@@ -573,7 +573,7 @@ function getInitials($firstname, $lastname) {
                                         <div class="crown trophy-icon">👑</div>
                                         <?php if (isset($topUsers[0])): ?>
                                             <?php if ($topUsers[0]['profile_picture'] && $topUsers[0]['profile_picture'] != 'default-profile.png'): ?>
-                                                <img src="../public/upload/<?php echo htmlspecialchars($topUsers[0]['profile_picture']); ?>" 
+                                                <img src="upload/<?php echo htmlspecialchars($topUsers[0]['profile_picture']); ?>" 
                                                      alt="<?php echo htmlspecialchars($topUsers[0]['firstname']); ?>" 
                                                      class="podium-avatar">
                                             <?php else: ?>
@@ -592,7 +592,7 @@ function getInitials($firstname, $lastname) {
                                     <div class="podium-avatar-container">
                                         <?php if (isset($topUsers[2])): ?>
                                             <?php if ($topUsers[2]['profile_picture'] && $topUsers[2]['profile_picture'] != 'default-profile.png'): ?>
-                                                <img src="../public/upload/<?php echo htmlspecialchars($topUsers[2]['profile_picture']); ?>" 
+                                                <img src="upload/<?php echo htmlspecialchars($topUsers[2]['profile_picture']); ?>" 
                                                      alt="<?php echo htmlspecialchars($topUsers[2]['firstname']); ?>" 
                                                      class="podium-avatar">
                                             <?php else: ?>
@@ -641,7 +641,7 @@ function getInitials($firstname, $lastname) {
                                     <div class="leaderboard-item">
                                         <div class="rank rank-<?php echo $index + 1; ?>"><?php echo $index + 1; ?></div>
                                         <?php if ($user['profile_picture'] && $user['profile_picture'] != 'default-profile.png'): ?>
-                                            <img src="../public/upload/<?php echo htmlspecialchars($user['profile_picture']); ?>" 
+                                            <img src="upload/<?php echo htmlspecialchars($user['profile_picture']); ?>" 
                                                  alt="<?php echo htmlspecialchars($user['firstname']); ?>" 
                                                  class="avatar">
                                         <?php else: ?>

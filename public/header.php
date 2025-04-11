@@ -17,7 +17,9 @@ $titles = [
     "sitin" => "Sit-In Rules and Regulations",
     "laboratory" => "Laboratory Rules and Regulations",
     "reservation" => "Reservations",
-    "history" => "Sit-in History"
+    "history" => "Sit-in History",
+    "resources" => "Resources",
+    "leader" => "Leaderboard"
 ];
 
 // Set the page title dynamically (default to 'Dashboard' if not found)
