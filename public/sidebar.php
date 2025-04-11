@@ -81,7 +81,12 @@
             <i class="fas fa-bullhorn mr-3"></i> 
             <span class="sidebar-text">Announcements</span>
         </a>
-        
+
+        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg" href="leader.php">
+            <i class="fas fa-trophy mr-3"></i> 
+            <span class="sidebar-text">Leaderboard</span>
+        </a>
+
         <!-- Rules & Regulations -->
         <div class="dropdown group">
             <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg transition-colors">
@@ -108,7 +113,7 @@
         </a>
         
         <!-- Reservations (Highlighted) -->
-        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg bg-blue-800/30" href="reservation.php">
+        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg" href="reservation.php">
             <i class="fas fa-calendar-check mr-3"></i> 
             <span class="sidebar-text">Reservations</span>
         </a>

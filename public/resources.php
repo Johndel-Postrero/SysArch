@@ -20,57 +20,10 @@ if (!isset($_SESSION['login_user'])) {
 // Database connection
 require __DIR__ . '/../config/db.php';
 
-// Handle file/folder upload
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if (isset($_POST['create_folder'])) {
-        // Create new folder
-        $title = trim($_POST['folder_name']);
-        $admin_id = $_SESSION['user_id'];
-        $parent_id = isset($_GET['folder']) ? (int)$_GET['folder'] : null;
-        
-        $stmt = $conn->prepare("INSERT INTO resources (admin_id, title, is_folder, parent_id) VALUES (?, ?, 1, ?)");
-        $stmt->bind_param("isi", $admin_id, $title, $parent_id);
-        
-        if (!$stmt->execute()) {
-            echo "Database error: " . $stmt->error;
-        } else {
-            header("Location: ".$_SERVER['PHP_SELF'].($parent_id ? "?folder=$parent_id" : ""));
-            exit();
-        }
-        $stmt->close();
-    } elseif (isset($_FILES['file_upload'])) {
-        // Handle file upload
-        $title = pathinfo($_FILES['file_upload']['name'], PATHINFO_FILENAME);
-        $file_name = time().'_'.basename($_FILES['file_upload']['name']);
-        $file_size = $_FILES['file_upload']['size'];
-        $file_type = $_FILES['file_upload']['type'];
-        $admin_id = $_SESSION['user_id'];
-        $parent_id = isset($_GET['folder']) ? (int)$_GET['folder'] : null;
-        
-        $target_dir = __DIR__ . '/../public/resources/';
-        $target_file = $target_dir . $file_name;
-        
-        if (move_uploaded_file($_FILES['file_upload']['tmp_name'], $target_file)) {
-            $stmt = $conn->prepare("INSERT INTO resources (admin_id, title, file_name, file_size, file_type, is_folder, parent_id) VALUES (?, ?, ?, ?, ?, 0, ?)");
-            $stmt->bind_param("issisi", $admin_id, $title, $file_name, $file_size, $file_type, $parent_id);
-            
-            if (!$stmt->execute()) {
-                echo "Database error: " . $stmt->error;
-            } else {
-                header("Location: ".$_SERVER['PHP_SELF'].($parent_id ? "?folder=$parent_id" : ""));
-                exit();
-            }
-            $stmt->close();
-        } else {
-            echo "File upload failed. Error code: " . $_FILES['file_upload']['error'];
-        }
-    }
-}
-
 // Get current folder (if any)
 $current_folder = isset($_GET['folder']) ? (int)$_GET['folder'] : null;
 
-// Fetch resources from the database - FIXED QUERY
+// Fetch resources from the database
 $query = "
     SELECT r.*, u.firstname, u.lastname 
     FROM resources r
@@ -83,40 +36,6 @@ $result = $conn->query($query);
 if (!$result) {
     echo "Query error: " . $conn->error;
 }
-
-// Handle file/folder deletion
-if (isset($_GET['delete'])) {
-    $id = (int)$_GET['delete'];
-    $admin_id = $_SESSION['user_id'];
-    
-    // Check if resource belongs to admin
-    $check = $conn->prepare("SELECT id, file_name, is_folder FROM resources WHERE id = ? AND admin_id = ?");
-    $check->bind_param("ii", $id, $admin_id);
-    $check->execute();
-    $result = $check->get_result();
-    
-    if ($result->num_rows > 0) {
-        $resource = $result->fetch_assoc();
-        
-        if ($resource['is_folder']) {
-            // Delete folder and its contents recursively
-            $conn->query("DELETE FROM resources WHERE id = $id OR parent_id = $id");
-        } else {
-            // Delete file
-            $file_path = __DIR__ . '/../public/resources/' . $resource['file_name'];
-            if (file_exists($file_path)) {
-                unlink($file_path);
-            }
-            $conn->query("DELETE FROM resources WHERE id = $id");
-        }
-    }
-    
-    header("Location: ".$_SERVER['PHP_SELF'].(isset($_GET['folder']) ? "?folder=".$_GET['folder'] : ""));
-    exit();
-}
-
-
-$result = $conn->query($query);
 
 // Fetch breadcrumbs if in a folder
 $breadcrumbs = [];
@@ -148,7 +67,7 @@ function formatFileSize($bytes) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Admin Resources</title>
+    <title>Student Resources</title>
     <script>
         window.onpageshow = function(event) {
             if (event.persisted) {
@@ -159,6 +78,7 @@ function formatFileSize($bytes) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/print-js/1.6.0/print.min.js"></script>
     <style>
         body {
             font-family: "Poppins-Regular";
@@ -218,19 +138,26 @@ function formatFileSize($bytes) {
         .breadcrumb-item:last-child:after {
             content: '';
         }
-        .resource-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        .resource-card {
+            position: relative;
+            z-index: 1;
+        }
+        .resource-card.menu-active {
+            z-index: 50;
+        }
+        .resource-menu-btn {
+            position: relative;
         }
         .modal {
             display: none;
             position: fixed;
-            z-index: 50;
+            z-index: 100;
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
             background-color: rgba(0,0,0,0.5);
+            overflow-y: auto;
         }
         .modal-content {
             background-color: white;
@@ -239,6 +166,45 @@ function formatFileSize($bytes) {
             border-radius: 8px;
             width: 400px;
             max-width: 90%;
+        }
+        .resource-menu {
+            position: absolute;
+            top: calc(100% + 5px);
+            right: 0;
+            background-color: white;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 100;
+            border-radius: 8px;
+            display: none;
+            padding: 4px 0;
+        }
+        .resource-menu a {
+            padding: 8px 16px;
+            display: block;
+            text-decoration: none;
+            color: #333;
+        }
+        .resource-menu a:hover {
+            background-color: #f1f1f1;
+        }
+        .show { display: block; }
+        .list-view .resource-card {
+            flex-direction: row;
+            align-items: center;
+        }
+        .list-view .resource-icon {
+            margin-right: 16px;
+        }
+        .list-view .resource-details {
+            flex: 1;
+        }
+        .list-view .resource-actions {
+            margin-left: auto;
+        }
+        .preview-modal {
+            max-width: 90%;
+            width: 800px;
         }
     </style>
 </head>
@@ -256,7 +222,7 @@ function formatFileSize($bytes) {
                 <div class="p-6 max-w-5xl mx-auto w-full">
                     <!-- Breadcrumbs -->
                     <?php if (!empty($breadcrumbs)): ?>
-                        <div class="flex items-center text-sm text-gray-600 mb-4">
+                        <div class="flex items-center text-sm text-gray-600 mb-4 gap-2">
                             <a href="resources.php" class="text-violet-600 hover:text-violet-800">
                                 <i class="fas fa-home"></i>
                             </a>
@@ -271,7 +237,7 @@ function formatFileSize($bytes) {
                         </div>
                     <?php endif; ?>
 
-                    <!-- Action Buttons -->
+                    <!-- Action Buttons (Simplified for students) -->
                     <div class="flex justify-between items-center mb-6">
                         <!-- Search -->
                         <div class="relative flex-1 mr-4">
@@ -280,7 +246,17 @@ function formatFileSize($bytes) {
                             <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                         </div>
                         
-                        <!-- Sort and Filter -->
+                        <!-- View Toggle -->
+                        <div class="flex space-x-2 mr-4">
+                            <button id="gridViewBtn" class="p-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300">
+                                <i class="fas fa-th-large"></i>
+                            </button>
+                            <button id="listViewBtn" class="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-300">
+                                <i class="fas fa-list"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Sort and Filter (Only these remain) -->
                         <div class="flex space-x-3">
                             <!-- Sort Dropdown -->
                             <div class="relative">
@@ -321,8 +297,8 @@ function formatFileSize($bytes) {
                     </div>
 
                     <!-- Resources Grid -->
-                    <?php if ($result && $result->num_rows > 0): ?>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="resourcesContainer">
+                    <div id="resourcesContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <?php if ($result && $result->num_rows > 0): ?>
                             <?php while ($row = $result->fetch_assoc()): ?>
                                 <?php
                                 $file_path = "resources/" . $row['file_name'];
@@ -360,24 +336,21 @@ function formatFileSize($bytes) {
                                 }
                                 ?>
                                 
-                                <div class="bg-white rounded-lg shadow p-4 resource-card transition-all duration-200 ease-in-out" 
+                                <div class="resource-card bg-white rounded-lg shadow p-4 relative" 
                                      data-file-type="<?php echo $file_type; ?>"
                                      data-name="<?php echo htmlspecialchars(strtolower($row['title'])); ?>"
                                      data-date="<?php echo strtotime($row['uploaded_at']); ?>"
-                                     data-size="<?php echo $row['file_size'] ?? 0; ?>">
-                                    <div class="flex items-start h-full">
-                                        <div class="flex-shrink-0">
+                                     data-size="<?php echo $row['file_size'] ?? 0; ?>"
+                                     data-id="<?php echo $row['id']; ?>">
+                                    
+                                    <!-- Main content - clickable area -->
+                                    <div class="flex items-start h-full cursor-pointer resource-main">
+                                        <div class="flex-shrink-0 resource-icon">
                                             <i class="fas <?php echo $icon; ?> <?php echo $icon_class; ?> file-icon"></i>
                                         </div>
-                                        <div class="ml-3 flex-1 flex flex-col h-full">
+                                        <div class="ml-3 flex-1 flex flex-col h-full resource-details">
                                             <div class="flex-1">
-                                                <?php if ($is_folder): ?>
-                                                    <a href="resources.php?folder=<?php echo $row['id']; ?>" class="block">
-                                                        <h3 class="font-bold text-lg text-gray-800 hover:text-violet-600"><?php echo htmlspecialchars($row['title']); ?></h3>
-                                                    </a>
-                                                <?php else: ?>
-                                                    <h3 class="font-bold text-lg text-gray-800"><?php echo htmlspecialchars($row['title']); ?></h3>
-                                                <?php endif; ?>
+                                                <h3 class="font-bold text-lg text-gray-800"><?php echo htmlspecialchars($row['title']); ?></h3>
                                             </div>
                                             
                                             <div class="mt-3 text-xs text-gray-500">
@@ -389,40 +362,60 @@ function formatFileSize($bytes) {
                                                     <?php endif; ?>
                                                 </div>
                                             </div>
-                                            
-                                            <div class="mt-3 flex space-x-2">
-                                                <?php if ($is_folder): ?>
-                                                    <a href="resources.php?folder=<?php echo $row['id']; ?>" 
-                                                       class="inline-flex items-center px-3 py-1 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors text-sm">
-                                                        <i class="fas fa-folder-open mr-1"></i>
-                                                        Open
-                                                    </a>
-                                                <?php else: ?>
-                                                    <a href="<?php echo $file_path; ?>" 
-                                                       download="<?php echo htmlspecialchars($row['file_name']); ?>" 
-                                                       class="inline-flex items-center px-3 py-1 bg-violet-100 text-violet-800 rounded-lg hover:bg-violet-200 transition-colors text-sm">
-                                                        <i class="fas fa-download mr-1"></i>
-                                                        Download
-                                                    </a>
-                                                <?php endif; ?>
-                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Context menu button -->
+                                    <div class="absolute top-2 right-2">
+                                        <button class="text-gray-500 hover:text-gray-700 resource-menu-btn">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <div class="resource-menu">
+                                            <?php if ($is_folder): ?>
+                                                <a href="resources.php?folder=<?php echo $row['id']; ?>"><i class="fas fa-folder-open mr-2"></i>Open</a>
+                                            <?php else: ?>
+                                                <a href="#" class="preview-file" data-id="<?php echo $row['id']; ?>"><i class="fas fa-eye mr-2"></i>Preview</a>
+                                                <a href="<?php echo $file_path; ?>" download="<?php echo htmlspecialchars($row['file_name']); ?>"><i class="fas fa-download mr-2"></i>Download</a>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </div>
                             <?php endwhile; ?>
-                        </div>
-                    <?php else: ?>
-                        <div class="bg-white rounded-lg shadow p-8 text-center">
-                            <i class="fas fa-folder-open text-4xl text-gray-400 mb-4"></i>
-                            <h3 class="text-xl font-semibold text-gray-600">This folder is empty</h3>
-                            <p class="text-gray-500">No resources found in this location</p>
-                        </div>
-                    <?php endif; ?>
+                        <?php else: ?>
+                            <div class="bg-white rounded-lg shadow p-8 text-center col-span-full">
+                                <i class="fas fa-folder-open text-4xl text-gray-400 mb-4"></i>
+                                <h3 class="text-xl font-semibold text-gray-600">This folder is empty</h3>
+                                <p class="text-gray-500">No resources found in this location</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Preview Modal -->
+    <div id="previewModal" class="modal">
+        <div class="modal-content preview-modal">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="previewTitle" class="text-lg font-semibold"></h3>
+                <div>
+                    <button id="printPreview" class="text-gray-500 hover:text-gray-700 mr-3">
+                        <i class="fas fa-print"></i>
+                    </button>
+                    <button id="downloadPreview" class="text-gray-500 hover:text-gray-700 mr-3">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button id="closePreviewModal" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="previewContent" class="flex justify-center items-center min-h-[400px]">
+                <!-- Preview content will be loaded here -->
+            </div>
+        </div>
+    </div>
 
     <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -434,15 +427,14 @@ function formatFileSize($bytes) {
         const filterDropdown = document.getElementById('filterDropdown');
         const resourceCards = Array.from(document.querySelectorAll('.resource-card'));
         const resourcesContainer = document.getElementById('resourcesContainer');
-        const addFolderBtn = document.getElementById('addFolderBtn');
-        const uploadFileBtn = document.getElementById('uploadFileBtn');
-        const folderModal = document.getElementById('folderModal');
-        const uploadModal = document.getElementById('uploadModal');
-        const closeFolderModal = document.getElementById('closeFolderModal');
-        const closeUploadModal = document.getElementById('closeUploadModal');
-        const cancelFolder = document.getElementById('cancelFolder');
-        const cancelUpload = document.getElementById('cancelUpload');
-        const deleteButtons = document.querySelectorAll('.delete-resource');
+        const gridViewBtn = document.getElementById('gridViewBtn');
+        const listViewBtn = document.getElementById('listViewBtn');
+        const previewModal = document.getElementById('previewModal');
+        const closePreviewModal = document.getElementById('closePreviewModal');
+        const previewTitle = document.getElementById('previewTitle');
+        const previewContent = document.getElementById('previewContent');
+        const printPreview = document.getElementById('printPreview');
+        const downloadPreview = document.getElementById('downloadPreview');
 
         // Toggle dropdown menus
         sortButton.addEventListener('click', function (e) {
@@ -540,22 +532,248 @@ function formatFileSize($bytes) {
             });
         });
 
-        // Folder Modal
-        addFolderBtn.addEventListener('click', function() {
-            folderModal.style.display = 'block';
+        // View Toggle
+        gridViewBtn.addEventListener('click', function() {
+            resourcesContainer.classList.remove('list-view');
+            resourcesContainer.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4';
+            gridViewBtn.classList.remove('bg-gray-100', 'text-gray-500');
+            gridViewBtn.classList.add('bg-gray-200', 'text-gray-700');
+            listViewBtn.classList.remove('bg-gray-200', 'text-gray-700');
+            listViewBtn.classList.add('bg-gray-100', 'text-gray-500');
         });
 
-        closeFolderModal.addEventListener('click', function() {
-            folderModal.style.display = 'none';
+        listViewBtn.addEventListener('click', function() {
+            resourcesContainer.classList.add('list-view');
+            resourcesContainer.className = 'grid grid-cols-1 gap-2 list-view';
+            listViewBtn.classList.remove('bg-gray-100', 'text-gray-500');
+            listViewBtn.classList.add('bg-gray-200', 'text-gray-700');
+            gridViewBtn.classList.remove('bg-gray-200', 'text-gray-700');
+            gridViewBtn.classList.add('bg-gray-100', 'text-gray-500');
         });
 
-        cancelFolder.addEventListener('click', function() {
-            folderModal.style.display = 'none';
+        // Preview Modal
+        closePreviewModal.addEventListener('click', function() {
+            previewModal.style.display = 'none';
         });
 
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            if (event.target === previewModal) {
+                previewModal.style.display = 'none';
+            }
+        });
+
+        // Context menu for resources
+        document.querySelectorAll('.resource-menu-btn').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const menu = this.nextElementSibling;
+                const card = this.closest('.resource-card');
+                
+                // Close all other open menus first
+                document.querySelectorAll('.resource-menu').forEach(m => {
+                    if (m !== menu) {
+                        m.classList.remove('show');
+                        m.closest('.resource-card').classList.remove('menu-active');
+                    }
+                });
+                
+                // Toggle the current menu
+                menu.classList.toggle('show');
+                
+                // Toggle active class on card to increase z-index
+                if (menu.classList.contains('show')) {
+                    card.classList.add('menu-active');
+                    
+                    // Check if menu is going off-screen
+                    const menuRect = menu.getBoundingClientRect();
+                    if (menuRect.right > window.innerWidth) {
+                        // Position menu to the left if it's going off-screen
+                        menu.style.right = 'auto';
+                        menu.style.left = '0';
+                    }
+                    
+                    // If menu would go below the viewport, position it above the button
+                    if (menuRect.bottom > window.innerHeight) {
+                        menu.style.top = 'auto';
+                        menu.style.bottom = '100%';
+                    }
+                } else {
+                    card.classList.remove('menu-active');
+                }
+            });
+        });
+        
+        // Close menus when clicking outside
+        document.addEventListener('click', function(e) {
+            const dropdowns = document.querySelectorAll('.resource-menu');
+            dropdowns.forEach(dropdown => {
+                if (!dropdown.contains(e.target) && 
+                    !e.target.classList.contains('resource-menu-btn') && 
+                    !e.target.closest('.resource-menu-btn')) {
+                    dropdown.classList.remove('show');
+                    const card = dropdown.closest('.resource-card');
+                    if (card) {
+                        card.classList.remove('menu-active');
+                    }
+                }
+            });
+        });
+
+        // Click on resource main area
+        document.querySelectorAll('.resource-main').forEach(element => {
+            element.addEventListener('click', function() {
+                const card = this.closest('.resource-card');
+                const isFolder = card.getAttribute('data-file-type') === 'folder';
+                const resourceId = card.getAttribute('data-id');
+                
+                if (isFolder) {
+                    window.location.href = 'resources.php?folder=' + resourceId;
+                } else {
+                    // Show preview for files
+                    previewResource(resourceId);
+                }
+            });
+        });
+
+        // Preview file from menu
+        document.querySelectorAll('.preview-file').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const resourceId = this.getAttribute('data-id');
+                previewResource(resourceId);
+                
+                // Close any open context menus
+                document.querySelectorAll('.resource-menu').forEach(menu => {
+                    menu.classList.remove('show');
+                });
+            });
+        });
+
+        // Print functionality for preview modal
+        printPreview.addEventListener('click', function() {
+            // Get the preview content
+            const previewContent = document.getElementById('previewContent').cloneNode(true);
+            
+            // Create a temporary container
+            const tempDiv = document.createElement('div');
+            tempDiv.style.width = '100%';
+            tempDiv.style.maxWidth = '800px';
+            tempDiv.style.margin = '0 auto';
+            
+            // Add the preview content
+            tempDiv.appendChild(previewContent);
+            
+            // Print using printJS
+            printJS({
+                printable: tempDiv.innerHTML,
+                type: 'raw-html',
+                style: `
+                    @media print {
+                        body { margin: 20px; }
+                        img, video, object { 
+                            max-width: 100% !important; 
+                            height: auto !important;
+                        }
+                        object { 
+                            width: 100% !important;
+                            height: 80vh !important;
+                        }
+                        .no-preview { 
+                            text-align: center;
+                            padding: 40px 0;
+                        }
+                        .no-preview i {
+                            font-size: 48px;
+                            margin-bottom: 20px;
+                        }
+                        .no-preview p {
+                            font-size: 16px;
+                        }
+                    }
+                `,
+                onLoadingEnd: function() {
+                    tempDiv.remove();
+                }
+            });
+        });
+
+        // Function to preview a resource
+        function previewResource(resourceId) {
+            fetch('get_resources.php?id=' + resourceId)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+
+                    previewTitle.textContent = data.title;
+                    previewContent.innerHTML = '';
+                    
+                    // Fix the file path to properly point to the resources directory
+                    const filePath = 'resources/' + data.file_name;
+                    
+                    // Update download button to force download
+                    downloadPreview.onclick = function(e) {
+                        e.preventDefault();
+                        const a = document.createElement('a');
+                        a.href = filePath;
+                        a.download = data.file_name; // This forces the download
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    };
+
+                    const fileExtension = data.file_name.split('.').pop().toLowerCase();
+                    
+                    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension)) {
+                        const img = document.createElement('img');
+                        img.src = filePath;
+                        img.alt = data.title;
+                        img.className = 'max-w-full max-h-[70vh]';
+                        previewContent.appendChild(img);
+                    } else if (fileExtension === 'pdf') {
+                        const object = document.createElement('object');
+                        object.data = filePath + '#toolbar=0&navpanes=0';
+                        object.type = 'application/pdf';
+                        object.className = 'w-full h-[70vh]';
+                        object.innerHTML = '<p>Your browser does not support PDFs. Please download the PDF to view it.</p>';
+                        previewContent.appendChild(object);
+                    } else if (['mp4', 'webm', 'ogg'].includes(fileExtension)) {
+                        const video = document.createElement('video');
+                        video.src = filePath;
+                        video.controls = true;
+                        video.className = 'max-w-full max-h-[70vh]';
+                        previewContent.appendChild(video);
+                    } else {
+                        const icon = document.createElement('i');
+                        icon.className = 'fas fa-file text-6xl text-gray-400 mb-4';
+                        
+                        const message = document.createElement('p');
+                        message.textContent = 'Preview not available for this file type. Please download the file to view it.';
+                        message.className = 'text-gray-600';
+                        
+                        previewContent.appendChild(icon);
+                        previewContent.appendChild(message);
+                    }
+
+                    previewModal.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to load resource details: ' + error.message);
+                });
+        }
     });
-
-
     </script>
 </body>
 </html>

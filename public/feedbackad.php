@@ -74,37 +74,7 @@ $conn->close();
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <style>
-        body {
-            font-family: "Poppins-Regular";
-            color: #333;
-            font-size: 16px;
-            margin: 0;
-        }
-        .sidebar {
-            width: 5rem;
-            transition: all 0.3s ease-in-out;
-        }
-        .sidebar:hover {
-            width: 16rem;
-        }
-        .sidebar:hover .sidebar-text {
-            display: inline;
-        }
-        .sidebar-text {
-            display: none;
-        }
-        .sidebar a {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-        }
-        .sidebar:hover a {
-            justify-content: flex-start;
-        }
-        .sidebar i {
-            font-size: 1.5rem;
-        }
+body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; }
         .main-content {
             margin-left: 5rem;
             transition: margin-left 0.3s ease-in-out;
@@ -115,18 +85,9 @@ $conn->close();
         .star-rating {
             color: #ffc107;
         }
-        .dropdown {
+        .dropdowns {
             position: relative;
             display: inline-block;
-        }
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            background-color: #fff;
-            box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-            z-index: 1000;
-            right: 0;
         }
         /* Overlay styles */
         .overlay {
@@ -210,14 +171,14 @@ $conn->close();
                             </div>
 
                             <!-- Sort Dropdown - Original Style -->
-                            <div class="dropdown">
+                            <div class="dropdowns">
                                 <button id="sortButton" class="flex items-center space-x-2 text-gray-600 relative">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
                                     </svg>
                                     <span>Sort</span>
                                 </button>
-                                <div id="sortDropdown" class="dropdown-content absolute bg-white rounded-lg shadow-lg border border-gray-200 w-32 hidden">
+                                <div id="sortDropdown" class="dropdowns-content absolute bg-white rounded-lg shadow-lg border border-gray-200 w-32 hidden">
                                     <a href="#" data-sort="az" class="block px-4 py-2 hover:bg-gray-100">A-Z</a>
                                     <a href="#" data-sort="za" class="block px-4 py-2 hover:bg-gray-100">Z-A</a>
                                     <a href="#" data-sort="newest" class="block px-4 py-2 hover:bg-gray-100">Newest</a>
@@ -314,14 +275,14 @@ let totalPages = 1;
 let currentSort = 'newest'; // Default sort
 
 // Initialize dropdown functionality
-document.querySelector('.dropdown').addEventListener('click', function(e) {
+document.querySelector('.dropdowns').addEventListener('click', function(e) {
     e.stopPropagation();
     document.getElementById('sortDropdown').classList.toggle('hidden');
 });
 
 // Close dropdown when clicking outside
 document.addEventListener('click', function(e) {
-    if (!e.target.closest('.dropdown')) {
+    if (!e.target.closest('.dropdowns')) {
         document.getElementById('sortDropdown').classList.add('hidden');
     }
 });

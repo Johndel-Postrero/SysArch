@@ -38,32 +38,65 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             exit();
         }
         $stmt->close();
-    } elseif (isset($_FILES['file_upload'])) {
-        // Handle file upload
-        $title = pathinfo($_FILES['file_upload']['name'], PATHINFO_FILENAME);
-        $file_name = time().'_'.basename($_FILES['file_upload']['name']);
-        $file_size = $_FILES['file_upload']['size'];
-        $file_type = $_FILES['file_upload']['type'];
-        $admin_id = $_SESSION['user_id'];
-        $parent_id = isset($_GET['folder']) ? (int)$_GET['folder'] : null;
+// Update the file upload handling section to this:
+} elseif (isset($_FILES['file_upload'])) {
+    // Handle multiple file uploads
+    $uploaded_files = $_FILES['file_upload'];
+    $admin_id = $_SESSION['user_id'];
+    $parent_id = isset($_GET['folder']) ? (int)$_GET['folder'] : null;
+    $target_dir = __DIR__ . '/../public/resources/';
+    $success_count = 0;
+    $errors = [];
+    
+    // Create target directory if it doesn't exist
+    if (!file_exists($target_dir)) {
+        mkdir($target_dir, 0755, true);
+    }
+    
+    foreach ($uploaded_files['name'] as $key => $name) {
+        if ($uploaded_files['error'][$key] !== UPLOAD_ERR_OK) {
+            $errors[] = "File {$name} upload failed with error code: " . $uploaded_files['error'][$key];
+            continue;
+        }
         
-        $target_dir = __DIR__ . '/../public/resources/';
+        $title = pathinfo($name, PATHINFO_FILENAME);
+        $file_name = time().'_'.basename($name);
+        $file_size = $uploaded_files['size'][$key];
+        $file_type = $uploaded_files['type'][$key];
+        $tmp_name = $uploaded_files['tmp_name'][$key];
         $target_file = $target_dir . $file_name;
         
-        if (move_uploaded_file($_FILES['file_upload']['tmp_name'], $target_file)) {
+        if (move_uploaded_file($tmp_name, $target_file)) {
             $stmt = $conn->prepare("INSERT INTO resources (admin_id, title, file_name, file_size, file_type, is_folder, parent_id) VALUES (?, ?, ?, ?, ?, 0, ?)");
             $stmt->bind_param("issisi", $admin_id, $title, $file_name, $file_size, $file_type, $parent_id);
             
-            if (!$stmt->execute()) {
-                echo "Database error: " . $stmt->error;
+            if ($stmt->execute()) {
+                $success_count++;
             } else {
-                header("Location: ".$_SERVER['PHP_SELF'].($parent_id ? "?folder=$parent_id" : ""));
-                exit();
+                $errors[] = "Database error for file {$name}: " . $stmt->error;
+                // Remove the uploaded file if database insertion failed
+                if (file_exists($target_file)) {
+                    unlink($target_file);
+                }
             }
             $stmt->close();
         } else {
-            echo "File upload failed. Error code: " . $_FILES['file_upload']['error'];
+            $errors[] = "Failed to move uploaded file {$name}";
         }
+    }
+    
+    if ($success_count > 0) {
+        if (!empty($errors)) {
+            // Store errors in session to display after redirect
+            $_SESSION['upload_errors'] = $errors;
+        }
+        header("Location: ".$_SERVER['PHP_SELF'].($parent_id ? "?folder=$parent_id" : ""));
+        exit();
+    } else {
+        echo "File upload failed. Errors:<br>" . implode("<br>", $errors);
+    }
+
+
     } elseif (isset($_POST['process_folder_upload'])) {
         // Handle folder upload processing
         $admin_id = $_SESSION['user_id'];
@@ -388,6 +421,35 @@ function processFolderStructure($structure, $parent_id, $admin_id, $conn) {
         .list-view .resource-actions {
             margin-left: auto;
         }
+        /* Add this to your existing styles */
+/* Add this to your existing styles */
+#filePreview {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#filePreview .preview-item {
+    transition: all 0.2s ease;
+}
+
+#filePreview .preview-item:hover {
+    background-color: #f8f9fa;
+}
+
+#filePreview .remove-btn {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+#filePreview .preview-item:hover .remove-btn {
+    opacity: 1;
+}
+
+#filePreview img {
+    max-width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+}
     </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased">
@@ -622,58 +684,45 @@ function processFolderStructure($structure, $parent_id, $admin_id, $conn) {
 
     <!-- Upload File Modal -->
     <div id="uploadModal" class="modal">
-        <div class="modal-content">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold">Upload File</h3>
-                <button id="closeUploadModal" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <form id="uploadForm" method="POST" action="" enctype="multipart/form-data">
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Select File</label>
-                    <div id="dropZone" class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                        <div class="space-y-1 text-center w-full">
-                            <!-- Preview Container -->
-                            <div id="filePreview" class="hidden mb-4">
-                                <!-- Image Preview -->
-                                <img id="imagePreview" src="#" alt="Preview" class="hidden max-h-40 mx-auto mb-2 rounded">
-                                
-                                <!-- Document Preview -->
-                                <div id="documentPreview" class="hidden p-4 bg-gray-100 rounded-lg text-center">
-                                    <i id="documentIcon" class="fas fa-file text-4xl mb-2 text-gray-500"></i>
-                                    <p id="documentName" class="font-medium text-gray-800 truncate"></p>
-                                    <p id="documentSize" class="text-xs text-gray-500"></p>
-                                </div>
-                                
-                                <!-- Video Preview -->
-                                <video id="videoPreview" controls class="hidden max-h-40 mx-auto mb-2 rounded"></video>
-                            </div>
-                            
-                            <!-- Upload Area (shown when no file selected) -->
-                            <div id="uploadArea">
-                                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                </svg>
-                                <div class="flex text-sm text-gray-600 justify-center">
-                                    <label for="file_upload" class="relative cursor-pointer bg-white rounded-md font-medium text-violet-600 hover:text-violet-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-violet-500">
-                                        <span>Upload a file</span>
-                                        <input id="file_upload" name="file_upload" type="file" class="sr-only" accept="image/*,.pdf,.doc,.docx,.txt,.rtf,.odt,video/*">
-                                    </label>
-                                    <p class="pl-1">or drag and drop</p>
-                                </div>
-                                <p class="text-xs text-gray-500">PDF, DOC, MP4, JPG up to 10MB</p>
-                            </div>
+    <div class="modal-content">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Upload File</h3>
+            <button id="closeUploadModal" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="uploadForm" method="POST" action="" enctype="multipart/form-data">
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Select File</label>
+                <div id="dropZone" class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                    <div class="space-y-1 text-center w-full">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <div class="flex text-sm text-gray-600 justify-center">
+                            <label for="file_upload" class="relative cursor-pointer bg-white rounded-md font-medium text-violet-600 hover:text-violet-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-violet-500">
+                                <span>Upload a file</span>
+                                <input id="file_upload" name="file_upload[]" type="file" class="sr-only" accept="image/*,.pdf,.doc,.docx,.txt,.rtf,.odt,video/*" multiple>
+                            </label>
+                            <p class="pl-1">or drag and drop</p>
                         </div>
+                        <p class="text-xs text-gray-500">PDF, DOC, MP4, JPG up to 10MB</p>
                     </div>
                 </div>
-                <div class="flex justify-end space-x-2">
-                    <button type="button" id="cancelUpload" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Upload</button>
+                
+                <!-- File previews container - moved outside the drop zone -->
+                <div id="filePreviewContainer" class="mt-4 hidden">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">Selected Files:</h4>
+                    <div id="filePreview" class="space-y-2 max-h-60 overflow-y-auto p-2 border border-gray-200 rounded-md"></div>
                 </div>
-            </form>
-        </div>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button type="button" id="cancelUpload" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Upload</button>
+            </div>
+        </form>
     </div>
+</div>
 
     <!-- Preview Modal -->
     <div id="previewModal" class="modal ">
@@ -1151,7 +1200,7 @@ function previewResource(resourceId) {
             previewContent.innerHTML = '';
             
             // Fix the file path to properly point to the resources directory
-            const filePath = '../public/resources/' + data.file_name;
+            const filePath = 'resources/' + data.file_name;
             
             // Update download button to force download
             downloadPreview.onclick = function(e) {
@@ -1204,13 +1253,117 @@ function previewResource(resourceId) {
             alert('Failed to load resource details: ' + error.message);
         });
 }
-        // File upload preview functionality
-        fileUpload.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
 
-            handleFilePreview(file);
+    // File upload preview functionality
+    const filePreviewContainer = document.getElementById('filePreviewContainer');
+    
+    fileUpload.addEventListener('change', function(e) {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) {
+            filePreviewContainer.classList.add('hidden');
+            return;
+        }
+
+        // Show preview container
+        filePreviewContainer.classList.remove('hidden');
+        
+        // Clear previous previews
+        filePreview.innerHTML = '';
+        
+        // Create preview items for each file
+        files.forEach((file, index) => {
+            const previewItem = document.createElement('div');
+            previewItem.className = 'flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100';
+            previewItem.dataset.index = index;
+            
+            // File icon and info
+            const fileInfo = document.createElement('div');
+            fileInfo.className = 'flex items-center flex-1 min-w-0';
+            
+            // File icon based on type
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-file text-lg mr-3 text-gray-500';
+            
+            if (file.type.match('image.*')) {
+                icon.className = 'fas fa-file-image text-lg mr-3 text-blue-500';
+            } else if (file.type.match('video.*')) {
+                icon.className = 'fas fa-file-video text-lg mr-3 text-red-500';
+            } else if (file.name.match(/\.pdf$/i)) {
+                icon.className = 'fas fa-file-pdf text-lg mr-3 text-red-500';
+            } else if (file.name.match(/\.(docx?|odt|rtf)$/i)) {
+                icon.className = 'fas fa-file-word text-lg mr-3 text-blue-500';
+            } else if (file.name.match(/\.(xlsx?|csv)$/i)) {
+                icon.className = 'fas fa-file-excel text-lg mr-3 text-green-500';
+            } else if (file.name.match(/\.(pptx?|odp)$/i)) {
+                icon.className = 'fas fa-file-powerpoint text-lg mr-3 text-orange-500';
+            }
+            
+            // File name and size
+            const fileDetails = document.createElement('div');
+            fileDetails.className = 'min-w-0';
+            fileDetails.innerHTML = `
+                <div class="font-medium truncate">${file.name}</div>
+                <div class="text-xs text-gray-500">${formatFileSize(file.size)}</div>
+            `;
+            
+            fileInfo.appendChild(icon);
+            fileInfo.appendChild(fileDetails);
+            
+            // Remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'ml-2 text-red-500 hover:text-red-700';
+            removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+            removeBtn.title = 'Remove file';
+            removeBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Remove the file from the input
+                const newFiles = Array.from(fileUpload.files).filter((_, i) => i !== parseInt(previewItem.dataset.index));
+                const dataTransfer = new DataTransfer();
+                newFiles.forEach(file => dataTransfer.items.add(file));
+                fileUpload.files = dataTransfer.files;
+                
+                // Remove the preview item
+                previewItem.remove();
+                
+                // If no files left, hide the preview container
+                if (newFiles.length === 0) {
+                    filePreviewContainer.classList.add('hidden');
+                }
+                
+                // Trigger change event to update the UI
+                const event = new Event('change');
+                fileUpload.dispatchEvent(event);
+            };
+            
+            previewItem.appendChild(fileInfo);
+            previewItem.appendChild(removeBtn);
+            filePreview.appendChild(previewItem);
         });
+    });
+
+    // Reset preview when modal is closed
+    [closeUploadModal, cancelUpload].forEach(button => {
+        button.addEventListener('click', function() {
+            filePreviewContainer.classList.add('hidden');
+            filePreview.innerHTML = '';
+            fileUpload.value = '';
+            
+            // Also reset the file input
+            const newInput = document.createElement('input');
+            newInput.type = 'file';
+            newInput.id = 'file_upload';
+            newInput.name = 'file_upload[]';
+            newInput.className = 'sr-only';
+            newInput.multiple = true;
+            newInput.accept = 'image/*,.pdf,.doc,.docx,.txt,.rtf,.odt,video/*';
+            
+            fileUpload.replaceWith(newInput);
+            fileUpload = newInput;
+            fileUpload.addEventListener('change', handleFileUploadChange);
+        });
+    });
 
         // Drag and drop functionality
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -1238,15 +1391,26 @@ function previewResource(resourceId) {
             dropZone.classList.remove('drag-over');
         }
 
-        dropZone.addEventListener('drop', function(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            
-            if (files.length > 0) {
-                fileUpload.files = files;
-                handleFilePreview(files[0]);
-            }
-        });
+// Update the drag and drop handler to trigger the change event
+dropZone.addEventListener('drop', function(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    
+    if (files.length > 0) {
+        // Create a new DataTransfer to hold the files
+        const dataTransfer = new DataTransfer();
+        
+        // Add all files to the DataTransfer
+        Array.from(files).forEach(file => dataTransfer.items.add(file));
+        
+        // Assign the files to the input
+        fileUpload.files = dataTransfer.files;
+        
+        // Trigger the change event to show previews
+        const event = new Event('change');
+        fileUpload.dispatchEvent(event);
+    }
+});
 
         function handleFilePreview(file) {
             // Show preview container and hide upload area

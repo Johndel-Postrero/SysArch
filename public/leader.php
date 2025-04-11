@@ -83,7 +83,7 @@ function getInitials($firstname, $lastname) {
             justify-content: flex-start;
         }
         .sidebar i {
-            font-size: 1.5rem;
+            font-size: 16px !important;
         }
         .main-content {
             margin-left: 5rem;
@@ -182,7 +182,7 @@ function getInitials($firstname, $lastname) {
         
         /* Updated podium styles */
         .podium-container {
-            margin-bottom: 100px;
+            margin-bottom: 10px;
         }
         
         .podium {
@@ -293,7 +293,7 @@ function getInitials($firstname, $lastname) {
         /* Crown for 1st place */
         .crown {
             position: absolute;
-            top: -100px;
+            top: -60px;
             left: 50%;
             transform: translateX(-50%);
             font-size: 2.5rem;
@@ -308,12 +308,10 @@ function getInitials($firstname, $lastname) {
             50% { transform: translateX(-50%) translateY(-10px); }
         }
         
-        /* Leaderboard list with game cards */
+        /* Leaderboard list with individual cards */
         .leaderboard-list {
-            margin-top: 40px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
+            max-width: 800px;
+            margin: 40px auto;
             padding: 0 20px;
         }
         
@@ -326,10 +324,13 @@ function getInitials($firstname, $lastname) {
             position: relative;
             overflow: hidden;
             border: 2px solid rgba(79, 70, 229, 0.1);
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
         }
         
         .leaderboard-item:hover {
-            transform: translateY(-5px) scale(1.02);
+            transform: translateY(-5px);
             box-shadow: 0 15px 30px rgba(0,0,0,0.15);
             border-color: rgba(79, 70, 229, 0.3);
         }
@@ -453,7 +454,6 @@ function getInitials($firstname, $lastname) {
             text-align: center;
             padding: 40px 0;
             color: #666;
-            grid-column: 1 / -1;
         }
         
         /* Trophy animation */
@@ -487,7 +487,23 @@ function getInitials($firstname, $lastname) {
             }
             
             .leaderboard-list {
-                grid-template-columns: 1fr;
+                padding: 0 10px;
+            }
+            
+            .leaderboard-item {
+                flex-direction: column;
+                text-align: center;
+                padding: 15px;
+            }
+            
+            .rank, .avatar {
+                margin-right: 0;
+                margin-bottom: 10px;
+            }
+            
+            .time-spent {
+                text-align: center;
+                margin-top: 10px;
             }
         }
     </style>
@@ -537,7 +553,7 @@ function getInitials($firstname, $lastname) {
                                     <div class="podium-avatar-container">
                                         <?php if (isset($topUsers[1])): ?>
                                             <?php if ($topUsers[1]['profile_picture'] && $topUsers[1]['profile_picture'] != 'default-profile.png'): ?>
-                                                <img src="../public/upload/<?php echo htmlspecialchars($topUsers[1]['profile_picture']); ?>" 
+                                                <img src="upload/<?php echo htmlspecialchars($topUsers[1]['profile_picture']); ?>" 
                                                      alt="<?php echo htmlspecialchars($topUsers[1]['firstname']); ?>" 
                                                      class="podium-avatar">
                                             <?php else: ?>
@@ -557,7 +573,7 @@ function getInitials($firstname, $lastname) {
                                         <div class="crown trophy-icon">👑</div>
                                         <?php if (isset($topUsers[0])): ?>
                                             <?php if ($topUsers[0]['profile_picture'] && $topUsers[0]['profile_picture'] != 'default-profile.png'): ?>
-                                                <img src="../public/upload/<?php echo htmlspecialchars($topUsers[0]['profile_picture']); ?>" 
+                                                <img src="upload/<?php echo htmlspecialchars($topUsers[0]['profile_picture']); ?>" 
                                                      alt="<?php echo htmlspecialchars($topUsers[0]['firstname']); ?>" 
                                                      class="podium-avatar">
                                             <?php else: ?>
@@ -576,7 +592,7 @@ function getInitials($firstname, $lastname) {
                                     <div class="podium-avatar-container">
                                         <?php if (isset($topUsers[2])): ?>
                                             <?php if ($topUsers[2]['profile_picture'] && $topUsers[2]['profile_picture'] != 'default-profile.png'): ?>
-                                                <img src="../public/upload/<?php echo htmlspecialchars($topUsers[2]['profile_picture']); ?>" 
+                                                <img src="upload/<?php echo htmlspecialchars($topUsers[2]['profile_picture']); ?>" 
                                                      alt="<?php echo htmlspecialchars($topUsers[2]['firstname']); ?>" 
                                                      class="podium-avatar">
                                             <?php else: ?>
@@ -625,7 +641,7 @@ function getInitials($firstname, $lastname) {
                                     <div class="leaderboard-item">
                                         <div class="rank rank-<?php echo $index + 1; ?>"><?php echo $index + 1; ?></div>
                                         <?php if ($user['profile_picture'] && $user['profile_picture'] != 'default-profile.png'): ?>
-                                            <img src="../public/upload/<?php echo htmlspecialchars($user['profile_picture']); ?>" 
+                                            <img src="upload/<?php echo htmlspecialchars($user['profile_picture']); ?>" 
                                                  alt="<?php echo htmlspecialchars($user['firstname']); ?>" 
                                                  class="avatar">
                                         <?php else: ?>
@@ -682,7 +698,6 @@ function getInitials($firstname, $lastname) {
             gsap.from(".leaderboard-item", {
                 duration: 0.8,
                 y: 30,
-                opacity: 0,
                 stagger: 0.1,
                 delay: 0.8,
                 ease: "power2.out"
