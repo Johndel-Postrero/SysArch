@@ -111,7 +111,10 @@
             <i class="fas fa-boxes mr-3"></i> 
             <span class="sidebar-text">Resources</span>
         </a>
-        
+        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg" href="lab.php">
+            <i class="fas fa-calendar-check mr-3"></i> 
+            <span class="sidebar-text">Lab Schedule</span>
+        </a>
         <!-- Reservations (Highlighted) -->
         <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg" href="reservation.php">
             <i class="fas fa-calendar-check mr-3"></i> 

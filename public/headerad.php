@@ -24,7 +24,8 @@ $titles = [
     "generate" => "Generate Report",
     "student" => "Student Records",
     "resourcesad" => "Resources",
-    "leaderboard" => "Leaderboard"
+    "leaderboard" => "Leaderboard",
+    "labsched" => "Lab Schedule"
 ];
 
 // Set the page title dynamically (default to 'Dashboard' if not found)

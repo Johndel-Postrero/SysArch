@@ -19,7 +19,8 @@ require __DIR__ . '/../config/db.php';
 $sql = "SELECT sitin.id, sitin.idno, users.lastname, users.firstname, users.middlename, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, sitin.created_at
         FROM sitin 
         JOIN users ON sitin.idno = users.idno
-        WHERE sitin.time_out IS NOT NULL";
+        WHERE sitin.time_out IS NOT NULL
+        ORDER By sitin.created_at DESC";
 
 $result = $conn->query($sql);
 
@@ -156,6 +157,14 @@ $conn->close();
                                     <option value="Java Programming">Java Programming</option>
                                     <option value="PHP Programming">PHP Programming</option>
                                     <option value="ASP Net">ASP Net</option>
+                                    <option value="Web Development">Web Development</option>
+                                    <option value="Systems Integration & Architecture">Systems Integration & Architecture</option>
+                                    <option value="Embedded Systems & IoT">Embedded Systems & IoT</option>
+                                    <option value="Digital Logic & Design">Digital Logic & Design</option>
+                                    <option value="Computer Application">Computer Application</option>
+                                    <option value="Database">Database</option>
+                                    <option value="Project Management">Project Management</option>
+                                    <option value="Mobile Application">Mobile Application</option>
                                     <option value="Others">Others</option>
                                 </select>
                             </div>

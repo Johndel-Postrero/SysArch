@@ -119,4 +119,38 @@ CREATE TABLE rewards (
     FOREIGN KEY (rewarded_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
-ALTER TABLE rewards ADD COLUMN sitin_id INT;
+-- Lab schedule table
+CREATE TABLE lab_schedule (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    lab_number VARCHAR(10) NOT NULL,
+    start_datetime DATETIME NOT NULL,
+    end_datetime DATETIME NOT NULL,
+    status ENUM('available', 'unavailable') NOT NULL,
+    reason VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Add index for better performance
+CREATE INDEX idx_lab_schedule ON lab_schedule (lab_number, start_datetime, end_datetime);
+
+ALTER TABLE lab_schedule 
+ADD COLUMN schedule_type ENUM('recurring', 'specific') NOT NULL AFTER lab_number,
+ADD COLUMN weekday TINYINT(1) NULL AFTER schedule_type,
+ADD COLUMN specific_date DATE NULL AFTER weekday;
+
+ALTER TABLE lab_schedule 
+MODIFY COLUMN start_datetime TIME,
+MODIFY COLUMN end_datetime TIME;
+
+ALTER TABLE lab_schedule
+ADD COLUMN start_time TIME,
+ADD COLUMN end_time TIME;
+
+-- Then update your data
+UPDATE lab_schedule SET start_time = TIME(start_datetime), end_time = TIME(end_datetime);
+
+-- Then you can drop the old columns if you want
+ALTER TABLE lab_schedule
+DROP COLUMN start_datetime,
+DROP COLUMN end_datetime;

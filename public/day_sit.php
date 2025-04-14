@@ -159,6 +159,14 @@ $conn->close();
                                     <option value="Java Programming">Java Programming</option>
                                     <option value="PHP Programming">PHP Programming</option>
                                     <option value="ASP Net">ASP Net</option>
+                                    <option value="Web Development">Web Development</option>
+                                    <option value="Systems Integration & Architecture">Systems Integration & Architecture</option>
+                                    <option value="Embedded Systems & IoT">Embedded Systems & IoT</option>
+                                    <option value="Digital Logic & Design">Digital Logic & Design</option>
+                                    <option value="Computer Application">Computer Application</option>
+                                    <option value="Database">Database</option>
+                                    <option value="Project Management">Project Management</option>
+                                    <option value="Mobile Application">Mobile Application</option>
                                     <option value="Others">Others</option>
                                 </select>
                             </div>
@@ -237,30 +245,79 @@ $conn->close();
         </div>
     </div>
     <script>
-        // Data for Pie Charts
+        // Data for Purpose Pie Chart - now including all possible purposes
         const purposeData = {
-            labels: ["C Programming", "C# Programming", "Java Programming ", "PHP Programming", "ASP Net", "Others"],
+            labels: [
+                "C Programming", 
+                "C# Programming", 
+                "Java Programming", 
+                "PHP Programming", 
+                "ASP Net", 
+                "Web Development", 
+                "Systems Integration & Architecture", 
+                "Embedded Systems & IoT", 
+                "Digital Logic & Design", 
+                "Computer Application", 
+                "Database", 
+                "Project Management", 
+                "Mobile Application", 
+                "Others"
+            ],
             datasets: [{
                 data: [
                     <?php
-                    $javaCount = 0;
-                    $cCount = 0;
-                    $csCount = 0;
-                    $phpCount = 0;
-                    $aspCount = 0;
-                    $othersCount = 0;
+                    // Initialize counts for all purposes
+                    $purposeCounts = [
+                        "C Programming" => 0,
+                        "C# Programming" => 0,
+                        "Java Programming" => 0,
+                        "PHP Programming" => 0,
+                        "ASP Net" => 0,
+                        "Web Development" => 0,
+                        "Systems Integration & Architecture" => 0,
+                        "Embedded Systems & IoT" => 0,
+                        "Digital Logic & Design" => 0,
+                        "Computer Application" => 0,
+                        "Database" => 0,
+                        "Project Management" => 0,
+                        "Mobile Application" => 0,
+                        "Others" => 0
+                    ];
+                    
+                    // Count each purpose occurrence
                     foreach ($sitinData as $sitin) {
-                        if ($sitin['purpose'] === 'Java Programming') $javaCount++;
-                        elseif ($sitin['purpose'] === 'C Programming') $cCount++;
-                        elseif ($sitin['purpose'] === 'C# Programming') $csCount++;
-                        elseif ($sitin['purpose'] === 'PHP Programming') $phpCount++;
-                        elseif ($sitin['purpose'] === 'ASP Net') $aspCount++;
-                        else $othersCount++;
+                        $purpose = $sitin['purpose'];
+                        if (array_key_exists($purpose, $purposeCounts)) {
+                            $purposeCounts[$purpose]++;
+                        } else {
+                            $purposeCounts["Others"]++;
+                        }
                     }
-                    echo $cCount . ', ' . $csCount . ', ' . $javaCount . ', ' . $phpCount . ', ' . $aspCount . ', ' . $othersCount;
+                    
+                    // Output the counts in the same order as the labels
+                    echo implode(', ', [
+                        $purposeCounts["C Programming"],
+                        $purposeCounts["C# Programming"],
+                        $purposeCounts["Java Programming"],
+                        $purposeCounts["PHP Programming"],
+                        $purposeCounts["ASP Net"],
+                        $purposeCounts["Web Development"],
+                        $purposeCounts["Systems Integration & Architecture"],
+                        $purposeCounts["Embedded Systems & IoT"],
+                        $purposeCounts["Digital Logic & Design"],
+                        $purposeCounts["Computer Application"],
+                        $purposeCounts["Database"],
+                        $purposeCounts["Project Management"],
+                        $purposeCounts["Mobile Application"],
+                        $purposeCounts["Others"]
+                    ]);
                     ?>
                 ],
-                backgroundColor: ["#1E3A8A", "#1D4ED8", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE"],
+                backgroundColor: [
+                    "#1E3A8A", "#1D4ED8", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE",
+                    "#4C1D95", "#5B21B6", "#7C3AED", "#8B5CF6", "#A78BFA", "#C4B5FD",
+                    "#7E22CE", "#9333EA"
+                ],
             }]
         };
 
@@ -283,6 +340,7 @@ $conn->close();
         };
 
         // Render Pie Charts
+        // Render Purpose Pie Chart
         const purposeChart = new Chart(document.getElementById('purposeChart'), {
             type: 'pie',
             data: purposeData,
@@ -291,6 +349,10 @@ $conn->close();
                 plugins: {
                     legend: {
                         position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            padding: 20
+                        }
                     },
                     title: {
                         display: true,
