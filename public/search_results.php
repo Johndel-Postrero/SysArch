@@ -50,10 +50,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $deductSessionQuery->bind_param("i", $idno);
             $deductSessionQuery->execute();
             $deductSessionQuery->close();
-    
-            $_SESSION['success'] = "User successfully logged out and session deducted!";
         } else {
-            $_SESSION['error'] = "Error logging out. Please try again.";
+            echo "<script>
+                alert('Error logging out. Please try again.');
+                window.location.href = 'search_results.php?query=" . urlencode($_GET['query'] ?? '') . "';
+            </script>";
+            exit();
         }
         $logoutQuery->close();
     
@@ -69,43 +71,88 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $time_in = date("H:i:s");
         $sitin_date = date("Y-m-d");
 
-        // Check if user already has an active sit-in
+        // 1. First check if lab is currently unavailable
+        $current_time = date("H:i:s");
+        $labStatusCheck = $conn->prepare("SELECT id FROM lab_schedule 
+                                        WHERE lab_number = ? 
+                                        AND status = 'unavailable'
+                                        AND start_time <= ?
+                                        AND end_time >= ?
+                                        LIMIT 1");
+
+        if ($labStatusCheck === false) {
+            die("Prepare failed: " . $conn->error);
+        }
+
+        $labStatusCheck->bind_param("sss", $lab_number, $current_time, $current_time);
+        $labStatusCheck->execute();
+        $labStatusCheck->store_result();
+        
+        if ($labStatusCheck->num_rows > 0) {
+            echo "<script>
+                alert('Lab $lab_number is currently unavailable for sit-in at this time.');
+                window.location.href = 'search_results.php?query=" . urlencode($_GET['query'] ?? '') . "';
+            </script>";
+            exit();
+        }
+        $labStatusCheck->close();
+
+        // 2. Check current lab capacity
+        $capacityCheck = $conn->prepare("SELECT COUNT(*) as current_capacity FROM sitin 
+                                        WHERE lab_number = ? 
+                                        AND sitin_date = CURDATE() 
+                                        AND time_out IS NULL");
+        $capacityCheck->bind_param("s", $lab_number);
+        $capacityCheck->execute();
+        $capacityResult = $capacityCheck->get_result();
+        $currentCapacity = $capacityResult->fetch_assoc()['current_capacity'];
+        $capacityCheck->close();
+
+        if ($currentCapacity >= 5) {
+            echo "<script>
+                alert('Lab $lab_number has reached its maximum capacity of 5 students.');
+                window.location.href = 'search_results.php?query=" . urlencode($_GET['query'] ?? '') . "';
+            </script>";
+            exit();
+        }
+
+        // 3. Check if user already has an active sit-in
         $checkQuery = $conn->prepare("SELECT id FROM sitin WHERE idno = ? AND sitin_date = CURDATE() AND time_out IS NULL LIMIT 1");
         $checkQuery->bind_param("i", $idno);
         $checkQuery->execute();
         $checkQuery->store_result();
 
         if ($checkQuery->num_rows > 0) {
-            $_SESSION['error'] = "User is already sitting in today.";
+            echo "<script>
+                alert('User is already sitting in today.');
+                window.location.href = 'search_results.php?query=" . urlencode($_GET['query'] ?? '') . "';
+            </script>";
+            exit();
         } else {
             $insertQuery = $conn->prepare("INSERT INTO sitin (idno, lab_number, sitin_date, time_in, purpose) VALUES (?, ?, ?, ?, ?)");
             $insertQuery->bind_param("iisss", $idno, $lab_number, $sitin_date, $time_in, $purpose);
 
             if ($insertQuery->execute()) {
-                $_SESSION['success'] = "Sit-in successfully recorded!";
-                // Output JavaScript to show the success message and redirect
                 echo "<script>
                     alert('Sit-in successfully recorded!');
                     window.location.href = 'current_sit.php';
                 </script>";
                 exit();
             } else {
-                $_SESSION['error'] = "Error processing sit-in. Please try again.";
+                echo "<script>
+                    alert('Error processing sit-in. Please try again.');
+                    window.location.href = 'search_results.php?query=" . urlencode($_GET['query'] ?? '') . "';
+                </script>";
+                exit();
             }
             $insertQuery->close();
-            
         }
         $checkQuery->close();
     }
-
-    // Redirect back to maintain the search results
-    header("Location: search_results.php?query=" . urlencode($_GET['query'] ?? ''));
-    exit();
 }
 
 $conn->close();
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -235,7 +282,6 @@ $conn->close();
                                                     </button>
                                                 <?php endif; ?>
                                             </td>
-
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -278,6 +324,14 @@ $conn->close();
                                             <option value="Java Programming">Java Programming</option>
                                             <option value="PHP Programming">PHP Programming</option>
                                             <option value="ASP Net">ASP Net</option>
+                                            <option value="Web Development">Web Development</option>
+                                            <option value="Systems Integration & Architecture">Systems Integration & Architecture</option>
+                                            <option value="Embedded Systems & IoT">Embedded Systems & IoT</option>
+                                            <option value="Digital Logic & Design">Digital Logic & Design</option>
+                                            <option value="Computer Application">Computer Application</option>
+                                            <option value="Database">Database</option>
+                                            <option value="Project Management">Project Management</option>
+                                            <option value="Mobile Application">Mobile Application</option>
                                             <option value="Others">Others</option>
                                         </select>
                                     </div>
@@ -308,48 +362,46 @@ $conn->close();
     </div> <!-- End of flex h-screen -->
 
     <script>
-document.querySelectorAll('.sit-in-btn').forEach(button => {
-    button.addEventListener('click', function() {
-        document.getElementById('idno').value = this.getAttribute('data-idno');
-        document.getElementById('fullname').value = this.getAttribute('data-fullname');
-        document.getElementById('remainingSessions').value = this.getAttribute('data-session');
-        document.getElementById('sitInOverlay').classList.remove('hidden');
-    });
-});
+        document.querySelectorAll('.sit-in-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                document.getElementById('idno').value = this.getAttribute('data-idno');
+                document.getElementById('fullname').value = this.getAttribute('data-fullname');
+                document.getElementById('remainingSessions').value = this.getAttribute('data-session');
+                document.getElementById('sitInOverlay').classList.remove('hidden');
+            });
+        });
 
-document.getElementById('sitInForm').addEventListener('submit', function(event) {
-    event.preventDefault(); // Prevent form from reloading the page
+        function closeSitIn() {
+            document.getElementById('sitInOverlay').classList.add('hidden');
+        }
 
-    let formData = new FormData(this);
+        function toggleOtherReason() {
+            var purposeSelect = document.getElementById("purpose");
+            var otherReasonDiv = document.getElementById("otherReasonDiv");
+            otherReasonDiv.classList.toggle("hidden", purposeSelect.value !== "Others");
+        }
 
-    fetch("search_results.php?query=<?php echo urlencode($_GET['query'] ?? ''); ?>", {
-        method: "POST",
-        body: formData
-    })
-    .then(response => response.text())
-    .then(data => {
-        console.log(data); // Debugging
-        alert("Sit-in successfully recorded!"); // Optional: Display success message
-        document.getElementById('sitInOverlay').classList.add('hidden'); // Close modal
-        window.location.reload(); // Reload the page to reflect changes
-    })
-    .catch(error => {
-        console.error("Error:", error);
-        alert("Error processing sit-in. Please try again.");
-    });
-});
+        document.getElementById('sitInForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent form from reloading the page
 
-function closeSitIn() {
-    document.getElementById('sitInOverlay').classList.add('hidden');
-}
+            let formData = new FormData(this);
 
-function toggleOtherReason() {
-    var purposeSelect = document.getElementById("purpose");
-    var otherReasonDiv = document.getElementById("otherReasonDiv");
-    otherReasonDiv.classList.toggle("hidden", purposeSelect.value !== "Others");
-}
-
+            fetch("search_results.php?query=<?php echo urlencode($_GET['query'] ?? ''); ?>", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log(data); // Debugging
+                alert("Sit-in successfully recorded!"); // Optional: Display success message
+                document.getElementById('sitInOverlay').classList.add('hidden'); // Close modal
+                window.location.reload(); // Reload the page to reflect changes
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                alert("Error processing sit-in. Please try again.");
+            });
+        });
     </script>
-
 </body>
 </html>

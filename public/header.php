@@ -11,15 +11,19 @@ $page = basename($_SERVER['PHP_SELF'], ".php");
 
 // Define a title based on the page
 $titles = [
-    "admimIndex" => "Dashboard",
+    "index" => "Dashboard",
+    "profile" => "Profile",
+    "lab_schedule" => "Lab Schedule",
     "announcement" => "Announcements",
-    "profile" => "Profile Settings",
-    "sitin" => "Sit-In Rules and Regulations",
-    "laboratory" => "Laboratory Rules and Regulations",
-    "reservation" => "Reservations",
-    "history" => "Sit-in History",
+    "leader" => "Leaderboard",
+    "sitin" => "Sit-In",
+    "laboratory" => "Laboratory",
     "resources" => "Resources",
-    "leader" => "Leaderboard"
+    "reservation" => "Reservations",
+    "history" => "History",
+    "rules" => "Rules & Regulations",
+    "lab" => "Lab Schedule",
+
 ];
 
 // Set the page title dynamically (default to 'Dashboard' if not found)
