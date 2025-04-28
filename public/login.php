@@ -165,7 +165,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         document.getElementById("closeDialog").addEventListener("click", function () {
             document.getElementById("successDialog").close();
-            window.location.href = "<?php echo ($_SESSION['role'] === 'admin') ? 'adminIndex.php' : 'index.php'; ?>";
+            window.location.href = "<?php echo ($_SESSION['role'] === 'admin') ? './Admin/adminIndex.php' : 'index.php'; ?>";
         });
     <?php endif; ?>
 });
