@@ -7,13 +7,12 @@ header("Expires: 0");
 session_start();
 
 if (!isset($_SESSION['login_user'])) {
-    header("Location: login.php");
+    header("Location: ../login.php");
     exit();
 }
 
-require __DIR__ . '/../config/db.php';
+require __DIR__ . '/../../config/db.php';
 
-// Handle form submission for new schedule
 // Handle form submission for new schedule
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $lab_number = $_POST['lab_number'];
@@ -25,14 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $status = $_POST['status'];
     $reason = $_POST['reason'] ?? '';
     
-    // Validate time range (7am to 9pm)
+    // Validate time range (7am to 8pm)
     $start = strtotime($start_time);
     $end = strtotime($end_time);
     $min_time = strtotime('07:00:00');
-    $max_time = strtotime('21:00:00');
+    $max_time = strtotime('20:00:00');
     
     if ($start < $min_time || $end > $max_time) {
-        $_SESSION['schedule_error'] = "Lab hours must be between 7:00 AM and 9:00 PM";
+        $_SESSION['schedule_error'] = "Lab hours must be between 7:00 AM and 8:00 PM";
     } elseif ($start >= $end) {
         $_SESSION['schedule_error'] = "End time must be after start time";
     } else {
@@ -40,25 +39,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($schedule_type === 'specific' && empty($specific_date)) {
             $_SESSION['schedule_error'] = "Please select a specific date";
         } else {
-            // Delete conflicting schedules if any
-            if (!empty($_POST['conflict_ids'])) {
-                $conflict_ids = explode(',', $_POST['conflict_ids']);
-                $placeholders = implode(',', array_fill(0, count($conflict_ids), '?'));
-                $stmt = $conn->prepare("DELETE FROM lab_schedule WHERE id IN ($placeholders)");
-                $stmt->bind_param(str_repeat('i', count($conflict_ids)), ...$conflict_ids);
-                $stmt->execute();
-                $stmt->close();
-                
-                $_SESSION['schedule_notice'] = count($conflict_ids) . " conflicting schedule(s) were removed.";
-            }
-            
             // Handle "all labs" option
             if ($lab_number === 'all') {
                 $all_labs = ['524', '526', '528', '530', '542', '544'];
                 $success_count = 0;
                 
                 foreach ($all_labs as $lab) {
-                    // Insert new schedule using TIME fields
+                    if ($status === 'unavailable') {
+                        // Handle splitting of existing available schedules
+                        $result = splitExistingSchedules($conn, $lab, $schedule_type, $weekday, $specific_date, $start_time, $end_time);
+                        if ($result !== true) {
+                            $_SESSION['schedule_error'] = $result;
+                            break;
+                        }
+                    }
+                    
+                    // Insert new schedule
                     $stmt = $conn->prepare("INSERT INTO lab_schedule 
                                           (lab_number, schedule_type, weekday, specific_date, start_time, end_time, status, reason) 
                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
@@ -71,23 +67,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 if ($success_count > 0) {
-                    $_SESSION['schedule_success'] = "Schedule added successfully for $success_count labs!" . 
-                                         (isset($_SESSION['schedule_notice']) ? " " . $_SESSION['schedule_notice'] : "");
-                    unset($_SESSION['schedule_notice']);
+                    $_SESSION['schedule_success'] = "Schedule added successfully for $success_count labs!";
                 } else {
                     $_SESSION['schedule_error'] = "Failed to add schedules!";
                 }
             } else {
                 // Handle single lab scheduling
+                if ($status === 'unavailable') {
+                    // Handle splitting of existing available schedules
+                    $result = splitExistingSchedules($conn, $lab_number, $schedule_type, $weekday, $specific_date, $start_time, $end_time);
+                    if ($result !== true) {
+                        $_SESSION['schedule_error'] = $result;
+                    }
+                }
+                
                 $stmt = $conn->prepare("INSERT INTO lab_schedule 
                                       (lab_number, schedule_type, weekday, specific_date, start_time, end_time, status, reason) 
                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param("ssisssss", $lab_number, $schedule_type, $weekday, $specific_date, $start_time, $end_time, $status, $reason);
                 
                 if ($stmt->execute()) {
-                    $_SESSION['schedule_success'] = "Schedule added successfully!" . 
-                                         (isset($_SESSION['schedule_notice']) ? " " . $_SESSION['schedule_notice'] : "");
-                    unset($_SESSION['schedule_notice']);
+                    $_SESSION['schedule_success'] = "Schedule added successfully!";
                 } else {
                     $_SESSION['schedule_error'] = "Error adding schedule: " . $conn->error;
                 }
@@ -99,6 +99,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header("Location: " . $_SERVER['PHP_SELF']);
     exit();
 }
+
+// Function to split existing available schedules when adding an unavailable period
+function splitExistingSchedules($conn, $lab_number, $schedule_type, $weekday, $specific_date, $unavailable_start, $unavailable_end) {
+    // Find all available schedules that overlap with the new unavailable period
+    if ($schedule_type === 'recurring') {
+        $sql = "SELECT id, start_time, end_time FROM lab_schedule 
+                WHERE lab_number = ? 
+                AND schedule_type = 'recurring' 
+                AND weekday = ? 
+                AND status = 'available'
+                AND ((start_time < ? AND end_time > ?) OR 
+                     (start_time < ? AND end_time > ?) OR 
+                     (start_time >= ? AND end_time <= ?))";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ssssssss", $lab_number, $weekday, 
+            $unavailable_end, $unavailable_start, 
+            $unavailable_end, $unavailable_start, 
+            $unavailable_start, $unavailable_end);
+    } else {
+        $sql = "SELECT id, start_time, end_time FROM lab_schedule 
+                WHERE lab_number = ? 
+                AND schedule_type = 'specific' 
+                AND specific_date = ? 
+                AND status = 'available'
+                AND ((start_time < ? AND end_time > ?) OR 
+                     (start_time < ? AND end_time > ?) OR 
+                     (start_time >= ? AND end_time <= ?))";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ssssssss", $lab_number, $specific_date, 
+            $unavailable_end, $unavailable_start, 
+            $unavailable_end, $unavailable_start, 
+            $unavailable_start, $unavailable_end);
+    }
+    
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $schedules_to_split = $result->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    
+    foreach ($schedules_to_split as $schedule) {
+        $original_start = $schedule['start_time'];
+        $original_end = $schedule['end_time'];
+        
+        // Split into before and after periods
+        $before_start = $original_start;
+        $before_end = $unavailable_start;
+        
+        $after_start = $unavailable_end;
+        $after_end = $original_end;
+        
+        // Delete the original schedule
+        $stmt = $conn->prepare("DELETE FROM lab_schedule WHERE id = ?");
+        $stmt->bind_param("i", $schedule['id']);
+        $stmt->execute();
+        $stmt->close();
+        
+        // Insert before period if valid
+        if ($before_start < $before_end) {
+            $stmt = $conn->prepare("INSERT INTO lab_schedule 
+                                  (lab_number, schedule_type, weekday, specific_date, start_time, end_time, status, reason) 
+                                  VALUES (?, ?, ?, ?, ?, ?, 'available', 'Split from original schedule')");
+            $stmt->bind_param("ssisss", $lab_number, $schedule_type, $weekday, $specific_date, $before_start, $before_end);
+            $stmt->execute();
+            $stmt->close();
+        }
+        
+        // Insert after period if valid
+        if ($after_start < $after_end) {
+            $stmt = $conn->prepare("INSERT INTO lab_schedule 
+                                  (lab_number, schedule_type, weekday, specific_date, start_time, end_time, status, reason) 
+                                  VALUES (?, ?, ?, ?, ?, ?, 'available', 'Split from original schedule')");
+            $stmt->bind_param("ssisss", $lab_number, $schedule_type, $weekday, $specific_date, $after_start, $after_end);
+            $stmt->execute();
+            $stmt->close();
+        }
+    }
+    
+    return true;
+}
+
 // Handle delete request
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
@@ -117,7 +197,6 @@ if (isset($_GET['delete'])) {
 }
 
 // Fetch existing schedules
-// Fetch existing schedules - MODIFIED QUERIES
 $schedules = [
     'recurring' => [],
     'specific' => []
@@ -157,6 +236,7 @@ if ($result && $result->num_rows > 0) {
         $schedules['specific'][$row['lab_number']][$row['specific_date']][] = $row;
     }
 }
+
 // Check current lab occupancy
 $occupancy = [];
 $lab_numbers = ['524', '526', '528', '530', '542', '544'];
@@ -336,6 +416,17 @@ $weekdays = [
             overflow-y: auto;
             padding-right: 10px;
         }
+        .time-slot-container {
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        .timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
         @media (max-width: 1024px) {
             .schedule-container {
                 flex-direction: column;
@@ -413,10 +504,10 @@ $weekdays = [
                                                 <input type="radio" name="schedule_type" value="recurring" class="form-radio text-[#002044]" checked onchange="toggleScheduleType()">
                                                 <span class="ml-2">Recurring Weekly</span>
                                             </label>
-                                            <!--<label class="inline-flex items-center">
+                                            <label class="inline-flex items-center">
                                                 <input type="radio" name="schedule_type" value="specific" class="form-radio text-[#002044]" onchange="toggleScheduleType()">
                                                 <span class="ml-2">Specific Date</span>
-                                            </label>-->
+                                            </label>
                                         </div>
                                     </div>
                                     
@@ -435,18 +526,18 @@ $weekdays = [
                                     <div id="specificFields" style="display: none;">
                                         <label for="specific_date" class="block text-sm font-medium text-gray-700">Date</label>
                                         <input type="date" id="specific_date" name="specific_date" 
-       class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#002044] focus:border-[#002044]" 
-       min="<?php echo date('Y-m-d'); ?>"
-       value="<?php echo date('Y-m-d'); ?>"> <!-- Add default value -->
+                                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#002044] focus:border-[#002044]" 
+                                               min="<?php echo date('Y-m-d'); ?>"
+                                               value="<?php echo date('Y-m-d'); ?>">
                                     </div>
                                     
                                     <div class="grid grid-cols-2 gap-4">
                                         <div>
                                             <label for="start_time" class="block text-sm font-medium text-gray-700">Start Time</label>
                                             <select id="start_time" name="start_time" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#002044] focus:border-[#002044]" required>
-                                                <?php for ($h = 7; $h <= 21; $h++): ?>
+                                                <?php for ($h = 7; $h <= 20; $h++): ?>
                                                     <option value="<?php echo sprintf('%02d:00', $h); ?>"><?php echo sprintf('%02d:00', $h); ?></option>
-                                                    <?php if ($h < 21): ?>
+                                                    <?php if ($h < 20): ?>
                                                         <option value="<?php echo sprintf('%02d:30', $h); ?>"><?php echo sprintf('%02d:30', $h); ?></option>
                                                     <?php endif; ?>
                                                 <?php endfor; ?>
@@ -455,11 +546,11 @@ $weekdays = [
                                         <div>
                                             <label for="end_time" class="block text-sm font-medium text-gray-700">End Time</label>
                                             <select id="end_time" name="end_time" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#002044] focus:border-[#002044]" required>
-                                                <?php for ($h = 7; $h <= 21; $h++): ?>
-                                                    <option value="<?php echo sprintf('%02d:00', $h); ?>" <?php echo $h == 21 ? 'selected' : ''; ?>>
+                                                <?php for ($h = 7; $h <= 20; $h++): ?>
+                                                    <option value="<?php echo sprintf('%02d:00', $h); ?>" <?php echo $h == 20 ? 'selected' : ''; ?>>
                                                         <?php echo sprintf('%02d:00', $h); ?>
                                                     </option>
-                                                    <?php if ($h < 21): ?>
+                                                    <?php if ($h < 20): ?>
                                                         <option value="<?php echo sprintf('%02d:30', $h); ?>"><?php echo sprintf('%02d:30', $h); ?></option>
                                                     <?php endif; ?>
                                                 <?php endfor; ?>
@@ -491,11 +582,11 @@ $weekdays = [
                         <div class="schedule-display bg-white p-6 rounded-lg shadow">
                             <h2 class="text-xl font-semibold mb-4">Lab Schedules</h2>
                             
-                            <!-- Schedule Type Tabs 
+                            <!-- Schedule Type Tabs -->
                             <div class="schedule-type-tabs">
                                 <div class="schedule-type-tab active" data-type="recurring">Recurring Schedules</div>
                                 <div class="schedule-type-tab" data-type="specific">Specific Date Schedules</div>
-                            </div> -->
+                            </div>
                             
                             <!-- Lab Selection Tabs -->
                             <div class="lab-tabs">
@@ -530,31 +621,62 @@ $weekdays = [
                                             <h3 class="font-medium mb-3">All Labs - <?php echo $day; ?></h3>
                                             
                                             <?php foreach (['524', '526', '528', '530', '542', '544'] as $lab): ?>
-                                                <div class="mb-4">
+                                                <div class="time-slot-container mb-4">
                                                     <h4 class="font-medium text-sm mb-2">Lab <?php echo $lab; ?></h4>
                                                     
-                                                    <?php if (isset($schedules['recurring'][$lab][$num]) && !empty($schedules['recurring'][$lab][$num])): ?>
-                                                        <?php foreach ($schedules['recurring'][$lab][$num] as $schedule): ?>
-                                                            <div class="time-slot <?php echo $schedule['status']; ?>">
-                                                                <div>
-                                                                    <?php echo $schedule['start_time']; ?> - 
-                                                                    <?php echo $schedule['end_time']; ?>
-                                                                    <?php if ($schedule['reason']): ?>
-                                                                        <span class="text-xs text-gray-500 ml-2">(<?php echo $schedule['reason']; ?>)</span>
-                                                                    <?php endif; ?>
-                                                                </div>
-                                                                <div>
-                                                                    <a href="?delete=<?php echo $schedule['id']; ?>" 
-                                                                       class="text-red-500 hover:text-red-700 text-sm"
-                                                                       onclick="return confirmDelete();">
-                                                                        Delete
-                                                                    </a>
-                                                                </div>
-                                                            </div>
-                                                        <?php endforeach; ?>
-                                                    <?php else: ?>
-                                                        <div class="text-gray-500 italic text-sm">No schedule defined</div>
-                                                    <?php endif; ?>
+                                                    <?php 
+                                                    // Get all schedules for this lab and day, ordered by time
+                                                    $day_schedules = [];
+                                                    if (isset($schedules['recurring'][$lab][$num])) {
+                                                        $day_schedules = $schedules['recurring'][$lab][$num];
+                                                    }
+                                                    
+                                                    // Sort by start time
+                                                    usort($day_schedules, function($a, $b) {
+                                                        return strcmp($a['start_time'], $b['start_time']);
+                                                    });
+                                                    
+                                                    // Display as timeline
+                                                    $prev_end = '07:00';
+                                                    foreach ($day_schedules as $schedule) {
+                                                        // Show gap before this schedule if any
+                                                        if ($prev_end < $schedule['start_time']) {
+                                                            echo '<div class="time-slot available">
+                                                                    <div>'.$prev_end.' - '.$schedule['start_time'].'</div>
+                                                                    <div class="text-green-600 text-xs">Available</div>
+                                                                  </div>';
+                                                        }
+                                                        
+                                                        // Show the schedule itself
+                                                        echo '<div class="time-slot '.$schedule['status'].'">
+                                                                <div>'.$schedule['start_time'].' - '.$schedule['end_time'].'</div>
+                                                                <div>'.($schedule['status'] === 'available' ? 
+                                                                    '<span class="text-green-600 text-xs">Available</span>' : 
+                                                                    '<span class="text-red-600 text-xs">Unavailable</span>').'
+                                                                </div>';
+                                                        if ($schedule['reason']) {
+                                                            echo '<div class="text-xs text-gray-500 mt-1">'.$schedule['reason'].'</div>';
+                                                        }
+                                                        echo '<div class="mt-1">
+                                                                <a href="?delete='.$schedule['id'].'" 
+                                                                   class="text-red-500 hover:text-red-700 text-sm"
+                                                                   onclick="return confirmDelete();">
+                                                                    Delete
+                                                                </a>
+                                                              </div>
+                                                            </div>';
+                                                        
+                                                        $prev_end = $schedule['end_time'];
+                                                    }
+                                                    
+                                                    // Show gap after last schedule if any
+                                                    if ($prev_end < '20:00') {
+                                                        echo '<div class="time-slot available">
+                                                                <div>'.$prev_end.' - 20:00</div>
+                                                                <div class="text-green-600 text-xs">Available</div>
+                                                              </div>';
+                                                    }
+                                                    ?>
                                                 </div>
                                             <?php endforeach; ?>
                                         </div>
@@ -567,28 +689,61 @@ $weekdays = [
                                                  style="display: none;">
                                                 <h3 class="font-medium mb-3">Lab <?php echo $lab; ?> - <?php echo $day; ?></h3>
                                                 
-                                                <?php if (isset($schedules['recurring'][$lab][$num]) && !empty($schedules['recurring'][$lab][$num])): ?>
-                                                    <?php foreach ($schedules['recurring'][$lab][$num] as $schedule): ?>
-                                                        <div class="time-slot <?php echo $schedule['status']; ?>">
-                                                            <div>
-                                                                <?php echo $schedule['start_time']; ?> - 
-                                                                <?php echo $schedule['end_time']; ?>
-                                                                <?php if ($schedule['reason']): ?>
-                                                                    <span class="text-xs text-gray-500 ml-2">(<?php echo $schedule['reason']; ?>)</span>
-                                                                <?php endif; ?>
-                                                            </div>
-                                                            <div>
-                                                                <a href="?delete=<?php echo $schedule['id']; ?>" 
+                                                <div class="time-slot-container">
+                                                    <?php 
+                                                    // Get all schedules for this lab and day, ordered by time
+                                                    $day_schedules = [];
+                                                    if (isset($schedules['recurring'][$lab][$num])) {
+                                                        $day_schedules = $schedules['recurring'][$lab][$num];
+                                                    }
+                                                    
+                                                    // Sort by start time
+                                                    usort($day_schedules, function($a, $b) {
+                                                        return strcmp($a['start_time'], $b['start_time']);
+                                                    });
+                                                    
+                                                    // Display as timeline
+                                                    $prev_end = '07:00';
+                                                    foreach ($day_schedules as $schedule) {
+                                                        // Show gap before this schedule if any
+                                                        if ($prev_end < $schedule['start_time']) {
+                                                            echo '<div class="time-slot available">
+                                                                    <div>'.$prev_end.' - '.$schedule['start_time'].'</div>
+                                                                    <div class="text-green-600 text-xs">Available</div>
+                                                                  </div>';
+                                                        }
+                                                        
+                                                        // Show the schedule itself
+                                                        echo '<div class="time-slot '.$schedule['status'].'">
+                                                                <div>'.$schedule['start_time'].' - '.$schedule['end_time'].'</div>
+                                                                <div>'.($schedule['status'] === 'available' ? 
+                                                                    '<span class="text-green-600 text-xs">Available</span>' : 
+                                                                    '<span class="text-red-600 text-xs">Unavailable</span>').'
+                                                                </div>';
+                                                        if ($schedule['reason']) {
+                                                            echo '<div class="text-xs text-gray-500 mt-1">'.$schedule['reason'].'</div>';
+                                                        }
+                                                        echo '<div class="mt-1">
+                                                                <a href="?delete='.$schedule['id'].'" 
                                                                    class="text-red-500 hover:text-red-700 text-sm"
                                                                    onclick="return confirmDelete();">
                                                                     Delete
                                                                 </a>
-                                                            </div>
-                                                        </div>
-                                                    <?php endforeach; ?>
-                                                <?php else: ?>
-                                                    <div class="text-gray-500 italic">No schedule defined for this day</div>
-                                                <?php endif; ?>
+                                                              </div>
+                                                            </div>';
+                                                        
+                                                        $prev_end = $schedule['end_time'];
+                                                    }
+                                                    
+                                                    // Show gap after last schedule if any
+                                                    if ($prev_end < '20:00') {
+                                                        echo '<div class="time-slot available">
+                                                                <div>'.$prev_end.' - 20:00</div>
+                                                                <div class="text-green-600 text-xs">Available</div>
+                                                              </div>';
+                                                    }
+                                                    ?>
+                                                </div>
                                             </div>
                                         <?php endforeach; ?>
                                     <?php endforeach; ?>
@@ -763,7 +918,7 @@ $weekdays = [
                 
                 // Calculate end time (1 hour later)
                 let endHours = hours + 1;
-                if (endHours > 21) endHours = 21;
+                if (endHours > 20) endHours = 20;
                 
                 document.getElementById('end_time').value = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
             });
@@ -833,138 +988,168 @@ $weekdays = [
                 return;
             }
             
-            let html = '';
+            // Sort schedules by start time
+            schedules.sort((a, b) => a.start_time.localeCompare(b.start_time));
+            
+            let html = '<div class="timeline">';
+            let prevEnd = '07:00';
+            
+            // Show the complete timeline with gaps
             schedules.forEach(schedule => {
-                html += `
-                    <div class="time-slot ${schedule.status}">
-                        <div>
-                            ${schedule.start_time} - ${schedule.end_time}
-                            ${schedule.reason ? `<span class="text-xs text-gray-500 ml-2">(${schedule.reason})</span>` : ''}
-                        </div>
-                        <div>
+                // Show gap before this schedule if any
+                if (prevEnd < schedule.start_time) {
+                    html += `<div class="time-slot available">
+                                <div>${prevEnd} - ${schedule.start_time}</div>
+                                <div class="text-green-600 text-xs">Available</div>
+                            </div>`;
+                }
+                
+                // Show the schedule itself
+                html += `<div class="time-slot ${schedule.status}">
+                            <div>${schedule.start_time} - ${schedule.end_time}</div>
+                            <div>${schedule.status === 'available' ? 
+                                '<span class="text-green-600 text-xs">Available</span>' : 
+                                '<span class="text-red-600 text-xs">Unavailable</span>'}
+                            </div>`;
+                if (schedule.reason) {
+                    html += `<div class="text-xs text-gray-500 mt-1">${schedule.reason}</div>`;
+                }
+                html += `<div class="mt-1">
                             <a href="?delete=${schedule.id}" 
                                class="text-red-500 hover:text-red-700 text-sm"
                                onclick="return confirmDelete();">
                                 Delete
                             </a>
-                        </div>
-                    </div>
-                `;
+                          </div>
+                        </div>`;
+                
+                prevEnd = schedule.end_time;
             });
             
+            // Show gap after last schedule if any
+            if (prevEnd < '20:00') {
+                html += `<div class="time-slot available">
+                            <div>${prevEnd} - 20:00</div>
+                            <div class="text-green-600 text-xs">Available</div>
+                        </div>`;
+            }
+            
+            html += '</div>';
             container.innerHTML = html;
         }
         
         // Form validation and schedule checking
         async function validateScheduleForm(event) {
-    event.preventDefault();
-    
-    const form = event.target;
-    const formData = new FormData(form);
-    const labNumber = formData.get('lab_number');
-    const scheduleType = formData.get('schedule_type');
-    const weekday = formData.get('weekday');
-    const specificDate = formData.get('specific_date');
-    const startTime = formData.get('start_time');
-    const endTime = formData.get('end_time');
-    
-    // Basic validation
-    if (startTime >= endTime) {
-        alert('End time must be after start time');
-        return false;
-    }
-    
-    if (scheduleType === 'specific' && !specificDate) {
-        alert('Please select a specific date');
-        return false;
-    }
-    
-    // Prepare data for conflict check
-    const checkData = new URLSearchParams();
-    checkData.append('lab_number', labNumber);
-    checkData.append('schedule_type', scheduleType);
-    checkData.append('start_time', startTime);
-    checkData.append('end_time', endTime);
-    
-    if (scheduleType === 'recurring') {
-        checkData.append('weekday', weekday);
-    } else {
-        checkData.append('specific_date', specificDate);
-    }
-    
-    try {
-        // Show loading indicator
-        const submitButton = form.querySelector('button[type="submit"]');
-        const originalButtonText = submitButton.textContent;
-        submitButton.disabled = true;
-        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
-        
-        const response = await fetch('check_schedule.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: checkData,
-            credentials: 'same-origin'
-        });
-        
-        // First check if response is ok
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        // Get the response text first
-        const responseText = await response.text();
-        
-        // Try to parse as JSON
-        let result;
-        try {
-            result = JSON.parse(responseText);
-        } catch (e) {
-            console.error('Failed to parse JSON:', responseText);
-            throw new Error('Invalid server response format');
-        }
-        
-        if (result.error) {
-            throw new Error(result.error);
-        }
-        
-        if (result.has_conflicts) {
-            // Build conflict message
-            let conflictMessage = "The following conflicting schedules exist:\n\n";
+            event.preventDefault();
             
-            if (labNumber === 'all') {
-                const labsWithConflicts = [...new Set(result.conflicts.map(c => c.lab))];
-                conflictMessage += `Labs: ${labsWithConflicts.join(', ')}\n`;
+            const form = event.target;
+            const formData = new FormData(form);
+            const labNumber = formData.get('lab_number');
+            const scheduleType = formData.get('schedule_type');
+            const weekday = formData.get('weekday');
+            const specificDate = formData.get('specific_date');
+            const startTime = formData.get('start_time');
+            const endTime = formData.get('end_time');
+            const status = formData.get('status');
+            
+            // Basic validation
+            if (startTime >= endTime) {
+                alert('End time must be after start time');
+                return false;
             }
             
-            result.conflicts.forEach(conflict => {
-                const labText = labNumber === 'all' ? `Lab ${conflict.lab}: ` : '';
-                const dateText = conflict.specific_date ? ` (${conflict.specific_date})` : '';
-                conflictMessage += `${labText}${conflict.start_time} - ${conflict.end_time}${dateText}\n`;
-            });
-            
-            conflictMessage += "\nDo you want to override these schedules?";
-            
-            if (confirm(conflictMessage)) {
-                document.getElementById('conflict_ids').value = result.conflicts.map(c => c.id).join(',');
-                form.submit();
+            if (scheduleType === 'specific' && !specificDate) {
+                alert('Please select a specific date');
+                return false;
             }
-        } else {
-            form.submit();
+            
+            // Prepare data for conflict check
+            const checkData = new URLSearchParams();
+            checkData.append('lab_number', labNumber);
+            checkData.append('schedule_type', scheduleType);
+            checkData.append('start_time', startTime);
+            checkData.append('end_time', endTime);
+            checkData.append('status', status);
+            
+            if (scheduleType === 'recurring') {
+                checkData.append('weekday', weekday);
+            } else {
+                checkData.append('specific_date', specificDate);
+            }
+            
+            try {
+                // Show loading indicator
+                const submitButton = form.querySelector('button[type="submit"]');
+                const originalButtonText = submitButton.textContent;
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+                
+                const response = await fetch('check_schedule.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: checkData,
+                    credentials: 'same-origin'
+                });
+                
+                // First check if response is ok
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                // Get the response text first
+                const responseText = await response.text();
+                
+                // Try to parse as JSON
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (e) {
+                    console.error('Failed to parse JSON:', responseText);
+                    throw new Error('Invalid server response format');
+                }
+                
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+                
+                if (result.has_conflicts) {
+                    // Build conflict message
+                    let conflictMessage = "The following conflicting schedules exist:\n\n";
+                    
+                    if (labNumber === 'all') {
+                        const labsWithConflicts = [...new Set(result.conflicts.map(c => c.lab))];
+                        conflictMessage += `Labs: ${labsWithConflicts.join(', ')}\n`;
+                    }
+                    
+                    result.conflicts.forEach(conflict => {
+                        const labText = labNumber === 'all' ? `Lab ${conflict.lab}: ` : '';
+                        const dateText = conflict.specific_date ? ` (${conflict.specific_date})` : '';
+                        conflictMessage += `${labText}${conflict.start_time} - ${conflict.end_time}${dateText}\n`;
+                    });
+                    
+                    conflictMessage += "\nDo you want to override these schedules?";
+                    
+                    if (confirm(conflictMessage)) {
+                        document.getElementById('conflict_ids').value = result.conflicts.map(c => c.id).join(',');
+                        form.submit();
+                    }
+                } else {
+                    form.submit();
+                }
+            } catch (error) {
+                console.error('Error checking schedule:', error);
+                alert(`Error: ${error.message}`);
+            } finally {
+                // Restore button state
+                const submitButton = form.querySelector('button[type="submit"]');
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+                }
+            }
         }
-    } catch (error) {
-        console.error('Error checking schedule:', error);
-        alert(`Error: ${error.message}`);
-    } finally {
-        // Restore button state
-        const submitButton = form.querySelector('button[type="submit"]');
-        if (submitButton) {
-            submitButton.disabled = false;
-            submitButton.textContent = originalButtonText;
-        }
-    }
-}
         
         // Confirm delete function
         function confirmDelete() {

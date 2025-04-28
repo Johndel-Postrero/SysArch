@@ -1,21 +1,16 @@
 <?php
-// Start session at the very top
 session_start();
-
-// Prevent caching
 header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
 header("Expires: 0");
 
 require __DIR__ . '/../config/db.php';
 
-// Check if user is logged in
 if (!isset($_SESSION['login_user'])) {
     header("Location: login.php");
     exit();
 }
 
-// Fetch user's details
 $username = $_SESSION['login_user'];
 $sql = "SELECT idno, lastname, firstname, session FROM users WHERE username = ?";
 $stmt = $conn->prepare($sql);
@@ -30,23 +25,37 @@ if (!$user) {
     exit();
 }
 
-// Process reservation form submission
+// Notification functions
+function saveAdminNotification($message, $conn) {
+    $stmt = $conn->prepare("INSERT INTO notifications (message, notification_type) VALUES (?, 'admin')");
+    $stmt->bind_param("s", $message);
+    $stmt->execute();
+    $stmt->close();
+}
+
+function saveStudentNotification($message, $userId, $conn) {
+    $stmt = $conn->prepare("INSERT INTO notifications (message, user_id, notification_type) VALUES (?, ?, 'student')");
+    $stmt->bind_param("si", $message, $userId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
     header('Content-Type: application/json');
     
     try {
         $idno = $user['idno'];
         $lab_number = $_POST['lab_number'];
+        $pc_number = $_POST['pc_number'];
         $purpose = ($_POST['purpose'] === 'Others') ? $_POST['other_reason'] : $_POST['purpose'];
         $reservation_date = $_POST['reservation_date'];
         $time_in = $_POST['time_in'];
         
-        // Validate inputs
-        if (empty($lab_number) || empty($purpose) || empty($reservation_date) || empty($time_in)) {
+        if (empty($lab_number) || empty($pc_number) || empty($purpose) || empty($reservation_date) || empty($time_in)) {
             throw new Exception("All fields are required");
         }
 
-        // Convert to 24-hour format
         $time_24hr = date("H:i", strtotime($time_in));
         if (!$time_24hr) {
             throw new Exception("Invalid time format");
@@ -54,7 +63,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
         
         $hour = (int)date('H', strtotime($time_24hr));
 
-        // Validation checks
         if ($user['session'] <= 0) {
             throw new Exception("You don't have enough sessions left");
         }
@@ -67,7 +75,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
             throw new Exception("Reservations allowed between 7am-8pm only");
         }
         
-        // Check existing reservations
         $checkQuery = $conn->prepare("SELECT id FROM reservations WHERE idno = ? AND reservation_date = ? AND time_in = ?");
         $checkQuery->bind_param("iss", $idno, $reservation_date, $time_24hr);
         $checkQuery->execute();
@@ -77,46 +84,62 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
             throw new Exception("You already have a reservation at this time");
         }
         
-        // Check lab availability
-        $labCheckQuery = $conn->prepare("SELECT id FROM reservations WHERE lab_number = ? AND reservation_date = ? AND time_in = ?");
-        $labCheckQuery->bind_param("iss", $lab_number, $reservation_date, $time_24hr);
-        $labCheckQuery->execute();
-        $labCheckQuery->store_result();
+        $pcCheckQuery = $conn->prepare("
+            SELECT id FROM reservations 
+            WHERE lab_number = ? AND pc_number = ? AND reservation_date = ? AND time_in = ?
+        ");
+        $pcCheckQuery->bind_param("iiss", $lab_number, $pc_number, $reservation_date, $time_24hr);
+        $pcCheckQuery->execute();
+        $pcCheckQuery->store_result();
         
-        if ($labCheckQuery->num_rows > 0) {
-            throw new Exception("Lab already reserved at this time");
+        if ($pcCheckQuery->num_rows > 0) {
+            throw new Exception("PC already reserved at this time");
         }
         
-        // Create reservation
-        $insertQuery = $conn->prepare("INSERT INTO reservations (idno, lab_number, reservation_date, time_in, purpose) VALUES (?, ?, ?, ?, ?)");
-        $insertQuery->bind_param("iisss", $idno, $lab_number, $reservation_date, $time_24hr, $purpose);
+        $pcStatusQuery = $conn->prepare("
+            SELECT status FROM lab_pcs 
+            WHERE lab_number = ? AND pc_number = ?
+        ");
+        $pcStatusQuery->bind_param("ii", $lab_number, $pc_number);
+        $pcStatusQuery->execute();
+        $pcStatusResult = $pcStatusQuery->get_result();
         
+        if ($pcStatusResult->num_rows === 0) {
+            throw new Exception("Selected PC doesn't exist in this lab");
+        }
+        
+        $pcStatus = $pcStatusResult->fetch_assoc()['status'];
+        if ($pcStatus !== 'available') {
+            throw new Exception("Selected PC is not available (Status: " . $pcStatus . ")");
+        }
+        
+        $insertQuery = $conn->prepare("
+            INSERT INTO reservations (idno, lab_number, pc_number, reservation_date, time_in, purpose) 
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        $insertQuery->bind_param("iiisss", $idno, $lab_number, $pc_number, $reservation_date, $time_24hr, $purpose);
+
         if ($insertQuery->execute()) {
+            // Notify admin about new reservation request
+            $adminMessage = "New reservation request from " . $user['firstname'] . " " . $user['lastname'] . 
+                          " for Lab " . $lab_number . ", PC " . $pc_number . 
+                          " on " . $reservation_date . " at " . $time_in;
+            saveAdminNotification($adminMessage, $conn);
+            
             echo json_encode(["success" => true, "message" => "Reservation created successfully!"]);
         } else {
             throw new Exception("Database error: " . $conn->error);
         }
+
     } catch (Exception $e) {
         echo json_encode(["success" => false, "message" => $e->getMessage()]);
     }
     exit();
 }
 
-// Modify your reservations query in the main page to:
 $reservationsQuery = $conn->prepare("
-    SELECT r.id, r.lab_number, r.reservation_date, r.time_in, r.purpose, r.status, 
-           (SELECT COUNT(*) FROM sitin s 
-            WHERE s.idno = r.idno 
-            AND s.lab_number = r.lab_number 
-            AND s.sitin_date = r.reservation_date 
-            AND s.time_in = r.time_in) AS has_sitin,
-           (SELECT COUNT(*) FROM sitin s 
-            WHERE s.idno = r.idno 
-            AND s.time_out IS NULL) AS has_active_sitin,
-           (CURRENT_TIMESTAMP >= TIMESTAMP(r.reservation_date, r.time_in) - INTERVAL 30 MINUTE) AS button_active,
-           (CURRENT_TIMESTAMP BETWEEN TIMESTAMP(r.reservation_date, r.time_in) - INTERVAL 30 MINUTE 
-            AND TIMESTAMP(r.reservation_date, r.time_in) + INTERVAL 15 MINUTE) AS within_grace_period,
-           (CURRENT_TIMESTAMP > TIMESTAMP(r.reservation_date, r.time_in) + INTERVAL 15 MINUTE) AS too_late
+    SELECT r.id, r.lab_number, r.pc_number, r.reservation_date, r.time_in, r.purpose, r.status, 
+           (CURRENT_TIMESTAMP >= TIMESTAMP(r.reservation_date, r.time_in)) AS is_past
     FROM reservations r 
     WHERE r.idno = ? 
     ORDER BY r.reservation_date DESC, r.time_in DESC
@@ -124,7 +147,7 @@ $reservationsQuery = $conn->prepare("
 $reservationsQuery->bind_param("i", $user['idno']);
 $reservationsQuery->execute();
 $reservationsResult = $reservationsQuery->get_result();
-$sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
+$reservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
 ?>
 <!DOCTYPE html>
 <html>
@@ -196,6 +219,31 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
             width: 100%;
         }
         .header { z-index: 100; position: relative; }
+
+        .pc-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .pc-item {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .pc-item:hover {
+            background-color: #f0f0f0;
+        }
+        .pc-item.selected {
+            background-color: #002044;
+            color: white;
+        }
+        .pc-item.unavailable {
+            background-color: #ffcccc;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased">
@@ -209,7 +257,6 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                 <div class="max-w-6xl mx-auto">
                     <!-- Controls (Entries, Search, Filter) -->
                     <div class="flex justify-between items-center mb-4">
-                        <!-- Entries Selection -->
                         <div class="flex items-center space-x-2">
                             <label class="text-gray-600" for="entries">
                                 Entries per page
@@ -223,50 +270,12 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                             </select>
                         </div>
 
-                        <!-- Search, Filter, and Sort (Right) -->
                         <div class="flex items-center space-x-4">
-                            <!-- Search -->
                             <div class="relative">
                                 <input id="searchInput" class="w-full py-2 pl-10 pr-4 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="Search" type="text"/>
                                 <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                             </div>
-
-                            <!-- Filter Dropdown -->
-                            <div class="relative dropdown">
-                                <button id="filterButton" class="flex items-center space-x-2 text-gray-600 relative">
-                                    <i class="fas fa-filter"></i>
-                                    <span>Filter</span>
-                                </button>
-                                <!-- Filter Dropdown Menu -->
-                                <div id="filterDropdown" class="dropdown-content absolute left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border border-gray-200 w-48 hidden">
-                                    <div class="p-2">
-                                        <label class="block text-sm font-medium text-gray-700">Lab</label>
-                                        <select id="courseFilter" class="w-full border border-gray-300 rounded-md p-2 mt-1">
-                                            <option value="">All Laboratory</option>
-                                            <option value="524">524</option>
-                                            <option value="526">526</option>
-                                            <option value="528">528</option>
-                                            <option value="530">530</option>
-                                            <option value="542">542</option>
-                                            <option value="544">544</option>
-                                        </select>
-                                    </div>
-                                    <div class="p-2">
-                                        <label class="block text-sm font-medium text-gray-700">Purpose</label>
-                                        <select id="levelFilter" class="w-full border border-gray-300 rounded-md p-2 mt-1">
-                                            <option value="">All Purpose</option>
-                                            <option value="C Programming">C Programming</option>
-                                            <option value="C# Programming">C# Programming</option>
-                                            <option value="Java Programming">Java Programming</option>
-                                            <option value="PHP Programming">PHP Programming</option>
-                                            <option value="ASP Net">ASP Net</option>
-                                            <option value="Others">Others</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
                             
-                            <!-- Add Reservation Button -->
                             <button onclick="openModal()" class="bg-[#002044] text-white px-4 py-2 rounded-md flex items-center space-x-2">
                                 <i class="fas fa-plus"></i>
                                 <span>Add Reservation</span>
@@ -274,89 +283,54 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                         </div>
                     </div>
 
-                    <!-- Table -->
                     <div class="overflow-x-auto">
                         <table id="sitinTable" class="min-w-full bg-white shadow-md rounded-lg">
                             <thead>
                                 <tr class="bg-[#002044] text-white">
                                     <th class="py-4 px-4 text-center">Lab Number</th>
+                                    <th class="py-4 px-4 text-center">PC Number</th>
                                     <th class="py-4 px-4 text-center">Date</th>
                                     <th class="py-4 px-4 text-center">Time</th>
                                     <th class="py-4 px-4 text-center">Purpose</th>
                                     <th class="py-4 px-4 text-center">Status</th>
-                                    <th class="py-4 px-4 text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-    <?php if (empty($sitinData)): ?>
-        <tr>
-            <td colspan="6" class="py-4 px-4 text-center">No reservations found</td>
-        </tr>
-    <?php else: ?>
-        <?php foreach ($sitinData as $index => $sitin): ?>
-            <tr class="<?php echo ($index % 2 === 0) ? 'bg-gray-100' : 'bg-gray-200'; ?>">
-                <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['lab_number']); ?></td>
-                <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('F j, Y', strtotime($sitin['reservation_date']))); ?></td>
-                <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('g:i A', strtotime($sitin['time_in']))); ?></td>
-                <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['purpose']); ?></td>
-                <td class="py-4 px-4 text-center">
-                    <span class="px-2 py-1 rounded-full text-xs 
-                        <?php 
-                            if ($sitin['status'] == 'approved') echo 'bg-green-100 text-green-800';
-                            elseif ($sitin['status'] == 'declined') echo 'bg-red-100 text-red-800';
-                            else echo 'bg-yellow-100 text-yellow-800';
-                        ?>">
-                        <?php echo htmlspecialchars(ucfirst($sitin['status'])); ?>
-                    </span>
-                </td>
-                <td class="py-4 px-4 text-center">
-                    <?php if ($sitin['status'] == 'pending'): ?>
-                        <!-- Edit and Delete buttons for pending reservations -->
-                        <button onclick="editReservation(<?php echo $sitin['id']; ?>)" class="text-blue-500 hover:text-blue-700 mx-1">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button onclick="deleteReservation(<?php echo $sitin['id']; ?>)" class="text-red-500 hover:text-red-700 mx-1">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    <?php elseif ($sitin['status'] == 'approved'): ?>
-                        <!-- Sit-in button for approved reservations -->
-                        <?php if ($sitin['has_sitin'] > 0): ?>
-                            <button class="bg-gray-300 text-gray-600 px-3 py-1 rounded cursor-not-allowed">
-                                Sit-In
-                            </button>
-                        <?php elseif ($sitin['too_late']): ?>
-                            <button class="bg-gray-300 text-gray-600 px-3 py-1 rounded cursor-not-allowed" title="Sit-in period has expired (15 minutes grace period passed)">
-                                Sit-In
-                            </button>
-                        <?php elseif ($sitin['button_active']): ?>
-                            <button onclick="recordSitin(<?php echo $sitin['id']; ?>)" class="bg-[#002044] text-white px-3 py-1 rounded hover:bg-[#003366]">
-                                Sit-In
-                            </button>
-                        <?php else: ?>
-                            <button class="bg-gray-300 text-gray-600 px-3 py-1 rounded cursor-not-allowed" title="Sit-in available starting <?php echo date('g:i A', strtotime($sitin['reservation_date'].' '.$sitin['time_in'].' - 30 minutes')); ?>">
-                                Sit-In
-                            </button>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        <!-- No action for declined reservations -->
-                        <span class="text-gray-400">No action</span>
-                    <?php endif; ?>
-                </td>
-            </tr>
-        <?php endforeach; ?>
-    <?php endif; ?>
-</tbody>
+                                <?php if (empty($reservations)): ?>
+                                    <tr>
+                                        <td colspan="6" class="py-4 px-4 text-center">No reservations found</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($reservations as $index => $reservation): ?>
+                                        <tr class="<?php echo ($index % 2 === 0) ? 'bg-gray-100' : 'bg-gray-200'; ?>">
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['lab_number']); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['pc_number']); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('F j, Y', strtotime($reservation['reservation_date']))); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('g:i A', strtotime($reservation['time_in']))); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['purpose']); ?></td>
+                                            <td class="py-4 px-4 text-center">
+                                                <span class="px-2 py-1 rounded-full text-xs 
+                                                    <?php 
+                                                        if ($reservation['status'] == 'approved') echo 'bg-green-100 text-green-800';
+                                                        elseif ($reservation['status'] == 'declined') echo 'bg-red-100 text-red-800';
+                                                        else echo 'bg-yellow-100 text-yellow-800';
+                                                    ?>">
+                                                    <?php echo htmlspecialchars(ucfirst($reservation['status'])); ?>
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
                         </table>
                     </div>
-                    <?php include 'pagination.php'; ?>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Reservation Modal -->
     <div id="reservationModal" class="overlay hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-        <div class="modal bg-white p-6 rounded-lg w-full max-w-md">
+        <div class="modal bg-white p-6 rounded-lg w-full max-w-md max-h-[700px] overflow-hidden md:overflow-auto overflow-hidden md:overflow-y-auto [&::-webkit-scrollbar]:hidden">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold">New Reservation</h2>
                 <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
@@ -379,13 +353,38 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                     </div>
                     
                     <div class="flex flex-col text-left">
-                        <label class="font-semibold">Sessions Left:</label>
+                        <label class="font-semibold">Remaining Sessions:</label>
                         <input type="text" value="<?php echo htmlspecialchars($user['session']); ?>" class="w-full border px-3 py-2 rounded bg-gray-200" readonly>
                     </div>
+                    <div class="flex flex-col text-left">
+                        <label class="font-semibold">Purpose:</label>
+                        <select name="purpose" class="w-full border px-3 py-2 rounded bg-white [&::-webkit-scrollbar]:hidden" onchange="toggleOtherReason()" required>
+                            <option value="">Select Purpose</option>
+                            <option value="C Programming">C Programming</option>
+                            <option value="C# Programming">C# Programming</option>
+                            <option value="Java Programming">Java Programming</option>
+                            <option value="PHP Programming">PHP Programming</option>
+                            <option value="ASP Net">ASP Net</option>
+                            <option value="Web Development">Web Development</option>
+                            <option value="Systems Integration & Architecture">Systems Integration & Architecture</option>
+                            <option value="Embedded Systems & IoT">Embedded Systems & IoT</option>
+                            <option value="Digital Logic & Design">Digital Logic & Design</option>
+                            <option value="Computer Application">Computer Application</option>
+                            <option value="Database">Database</option>
+                            <option value="Project Management">Project Management</option>
+                            <option value="Mobile Application">Mobile Application</option>
+                            <option value="Others">Others</option>
+                        </select>
+                    </div>
                     
+                    <div id="otherReasonDiv" class="hidden flex flex-col text-left">
+                        <label class="font-semibold">Specify Purpose:</label>
+                        <input type="text" name="other_reason" class="w-full border px-3 py-2 rounded bg-white">
+                    </div>
+
                     <div class="flex flex-col text-left">
                         <label class="font-semibold">Lab Number:</label>
-                        <select name="lab_number" class="w-full border px-3 py-2 rounded bg-white" required>
+                        <select name="lab_number" id="labSelect" class="w-full border px-3 py-2 rounded bg-white" required onchange="loadAvailablePCs()">
                             <option value="">Select Lab</option>
                             <option value="524">524</option>
                             <option value="526">526</option>
@@ -396,6 +395,14 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                         </select>
                     </div>
                     
+                    <div class="flex flex-col text-left" id="pcSelectionContainer" style="display: none;">
+                        <label class="font-semibold">Available PCs:</label>
+                        <div id="pcContainer" class="pc-grid">
+                            <p class="text-gray-500">Please select a lab first</p>
+                        </div>
+                        <input type="hidden" name="pc_number" id="selectedPC" required>
+                    </div>
+                    
                     <div class="grid grid-cols-2 gap-4">
                         <div class="flex flex-col text-left">
                             <label class="font-semibold">Date:</label>
@@ -403,31 +410,15 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                         </div>
                         
                         <div class="flex flex-col text-left">
-                            <label class="font-semibold">Time:</label>
+                            <label class="font-semibold">Time In:</label>
                             <input type="time" name="time_in" class="w-full border px-3 py-2 rounded bg-white" required>
                         </div>
                     </div>
                     
-                    <div class="flex flex-col text-left">
-                        <label class="font-semibold">Purpose:</label>
-                        <select name="purpose" class="w-full border px-3 py-2 rounded bg-white" onchange="toggleOtherReason()" required>
-                            <option value="">Select Purpose</option>
-                            <option value="C Programming">C Programming</option>
-                            <option value="C# Programming">C# Programming</option>
-                            <option value="Java Programming">Java Programming</option>
-                            <option value="PHP Programming">PHP Programming</option>
-                            <option value="ASP Net">ASP Net</option>
-                            <option value="Others">Others</option>
-                        </select>
-                    </div>
-                    
-                    <div id="otherReasonDiv" class="hidden flex flex-col text-left">
-                        <label class="font-semibold">Specify Purpose:</label>
-                        <input type="text" name="other_reason" class="w-full border px-3 py-2 rounded bg-white">
-                    </div>
+
                 </div>
 
-                <div class="flex justify-center gap-4 pt-4">
+                <div class="flex justify-center gap-6 pt-4">
                     <button type="button" onclick="closeModal()" class="w-40 h-12 border border-red-700 text-red-700 font-semibold rounded-lg hover:bg-red-700 hover:text-white transition duration-300">
                         Cancel
                     </button>
@@ -440,13 +431,11 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
     </div>
 
     <script>
-        // Initialize date picker
         const datePicker = flatpickr("#reservation_date", {
             minDate: "today",
-            maxDate: new Date().fp_incr(14), // 14 days from now
+            maxDate: new Date().fp_incr(14),
             disable: [
                 function(date) {
-                    // Disable Sundays
                     return (date.getDay() === 0);
                 }
             ],
@@ -461,6 +450,8 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
         function closeModal() {
             document.getElementById('reservationModal').classList.add('hidden');
             document.body.style.overflow = 'auto';
+            document.getElementById('selectedPC').value = '';
+            document.getElementById('pcSelectionContainer').style.display = 'none';
         }
         
         function toggleOtherReason() {
@@ -476,7 +467,63 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
             }
         }
         
-        // Handle form submission with fetch API
+        async function loadAvailablePCs() {
+            const labNumber = document.getElementById('labSelect').value;
+            const pcContainer = document.getElementById('pcContainer');
+            const pcSelectionContainer = document.getElementById('pcSelectionContainer');
+            const selectedPC = document.getElementById('selectedPC');
+            
+            // Hide the container if no lab is selected
+            if (!labNumber) {
+                pcSelectionContainer.style.display = 'none';
+                pcContainer.innerHTML = '<p class="text-gray-500">Please select a lab first</p>';
+                selectedPC.value = '';
+                return;
+            }
+            
+            // Show the container when lab is selected
+            pcSelectionContainer.style.display = 'flex';
+            pcContainer.innerHTML = '<p class="text-gray-500">Loading available PCs...</p>';
+            
+            try {
+                const response = await fetch('get_available_pcs.php?lab=' + labNumber);
+                const data = await response.json();
+                
+                if (data.success) {
+                    let html = '';
+                    data.pcs.forEach(pc => {
+                        const isAvailable = pc.status === 'available';
+                        html += `
+                            <div class="pc-item ${isAvailable ? '' : 'unavailable'}" 
+                                data-pc="${pc.pc_number}" 
+                                onclick="${isAvailable ? 'selectPC(this)' : ''}"
+                                title="${isAvailable ? 'Available' : 'Unavailable (' + pc.status + ')'}">
+                                PC ${pc.pc_number}
+                            </div>
+                        `;
+                    });
+                    pcContainer.innerHTML = html;
+                } else {
+                    pcContainer.innerHTML = '<p class="text-red-500">Error loading PCs: ' + data.message + '</p>';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                pcContainer.innerHTML = '<p class="text-red-500">Error loading PCs</p>';
+            }
+        }
+        
+        function selectPC(element) {
+            const pcNumber = element.getAttribute('data-pc');
+            const pcItems = document.querySelectorAll('.pc-item');
+            
+            pcItems.forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            element.classList.add('selected');
+            document.getElementById('selectedPC').value = pcNumber;
+        }
+
         document.getElementById('reservationForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -484,10 +531,8 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                 const form = e.target;
                 const formData = new FormData(form);
                 
-                // Explicitly add the reserve field
                 formData.append('reserve', '1');
                 
-                // Format the date properly before submission
                 const selectedDate = datePicker.selectedDates[0];
                 if (selectedDate) {
                     const formattedDate = datePicker.formatDate(selectedDate, 'Y-m-d');
@@ -513,25 +558,8 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                 alert('An error occurred. Please try again.');
             }
         });
-        
-        // Close modal when clicking outside of it
-        window.onclick = function(event) {
-            const modal = document.getElementById('reservationModal');
-            if (event.target === modal) {
-                closeModal();
-            }
-        };
 
-        // Initialize table with all entries visible by default
-        function initializeTable() {
-            const rows = document.querySelectorAll('#sitinTable tbody tr');
-            rows.forEach(row => {
-                row.style.display = '';
-            });
-        }
-        initializeTable();
-
-        // Entries per page functionality
+        // Table filtering and search functionality
         document.getElementById('entries').addEventListener('change', function() {
             const selectedValue = this.value;
             const rows = document.querySelectorAll('#sitinTable tbody tr');
@@ -548,7 +576,6 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
             }
         });
 
-        // Search functionality
         document.getElementById('searchInput').addEventListener('input', function() {
             const searchValue = this.value.toLowerCase();
             const rows = document.querySelectorAll('#sitinTable tbody tr');
@@ -564,107 +591,6 @@ $sitinData = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                 row.style.display = match ? '' : 'none';
             });
         });
-
-        // Filter functionality
-        document.getElementById('courseFilter').addEventListener('change', filterTable);
-        document.getElementById('levelFilter').addEventListener('change', filterTable);
-
-        function filterTable() {
-            const labValue = document.getElementById('courseFilter').value.toLowerCase();
-            const purposeValue = document.getElementById('levelFilter').value.toLowerCase();
-            const rows = document.querySelectorAll('#sitinTable tbody tr');
-            
-            rows.forEach(row => {
-                const labCell = row.cells[0].textContent.toLowerCase();
-                const purposeCell = row.cells[3].textContent.toLowerCase();
-                
-                const matchesLab = labValue ? labCell.includes(labValue) : true;
-                const matchesPurpose = purposeValue ? purposeCell.includes(purposeValue) : true;
-                
-                row.style.display = matchesLab && matchesPurpose ? '' : 'none';
-            });
-        }
-
-        // Toggle dropdowns
-        document.getElementById('filterButton').addEventListener('click', function(e) {
-            e.stopPropagation();
-            document.getElementById('filterDropdown').classList.toggle('hidden');
-        });
-
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', function() {
-            document.getElementById('filterDropdown').classList.add('hidden');
-        });
-
-        // Edit reservation
-        function editReservation(reservationId) {
-            console.log("Edit reservation:", reservationId);
-            // Implement edit functionality here
-            alert("Edit functionality will be implemented here for reservation ID: " + reservationId);
-        }
-
-        // Delete reservation
-        function deleteReservation(reservationId) {
-            if (confirm("Are you sure you want to delete this reservation?")) {
-                fetch('delete_reservation.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `id=${reservationId}`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert("Reservation deleted successfully!");
-                        location.reload();
-                    } else {
-                        alert("Error: " + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert("An error occurred while deleting the reservation.");
-                });
-            }
-        }
-
-// Record sit-in
-// Record sit-in
-function recordSitin(reservationId) {
-    if (confirm("Are you ready to sit-in? This will record your attendance.")) {
-        fetch('record_sitin.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `reservation_id=${reservationId}`
-        })
-        .then(response => {
-            // First check if the response is JSON
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                return response.text().then(text => {
-                    throw new Error(text);
-                });
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                location.reload();
-            } else {
-                alert(data.message);
-                location.reload();
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert("An error occurred: " + error.message);
-        });
-    }
-}
     </script>
 </body>
 </html>
