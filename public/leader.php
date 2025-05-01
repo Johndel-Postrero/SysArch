@@ -20,13 +20,12 @@ $query = "SELECT
             u.lastname, 
             u.profile_picture,
             u.course,
-            SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(s.time_out, s.time_in)))) AS total_time,
-            SUM(TIME_TO_SEC(TIMEDIFF(s.time_out, s.time_in))) AS total_seconds
+            COALESCE(SUM(r.points), 0) AS total_points
           FROM users u
-          JOIN sitin s ON u.idno = s.idno
-          WHERE s.time_out IS NOT NULL
+          LEFT JOIN rewards r ON u.idno = r.idno
+          WHERE u.role = 'student'
           GROUP BY u.idno
-          ORDER BY total_seconds DESC
+          ORDER BY total_points DESC
           LIMIT 10";
 
 $result = $conn->query($query);
@@ -83,7 +82,7 @@ function getInitials($firstname, $lastname) {
             justify-content: flex-start;
         }
         .sidebar i {
-            font-size: 16px !important;
+            font-size: 1.5rem;
         }
         .main-content {
             margin-left: 5rem;
@@ -242,7 +241,7 @@ function getInitials($firstname, $lastname) {
             font-weight: bold;
             margin-bottom: 5px;
             color: #4F46E5;
-            font-size: 1.1rem;
+            font-size: 1.3rem;
         }
         
         .podium-time {
@@ -410,15 +409,25 @@ function getInitials($firstname, $lastname) {
             margin-bottom: 5px;
         }
         
-        .time-spent {
+        .podium-points {
+            font-weight: bold;
+            color: #666;
+            font-size: 1rem;
+        }
+
+        .podium-points::before {
+            content: "🏆 ";
+        }
+        
+        .points-earned {
             font-weight: bold;
             color: #4F46E5;
             font-size: 1.1rem;
             text-align: right;
         }
         
-        .time-spent::before {
-            content: "⏱️ ";
+        .points-earned::before {
+            content: "🏆 ";
         }
         
         .progress-bar {
@@ -542,7 +551,7 @@ function getInitials($firstname, $lastname) {
                 <div class="leaderboard-container p-6">
                     <div class="leaderboard-header">
                         <h1 class="leaderboard-title">Lab Champions</h1>
-                        <p class="leaderboard-subtitle">Top performers based on dedication and time spent</p>
+                        <p class="leaderboard-subtitle">Top performers based on points earned</p>
                     </div>
                     
                     <?php if (!empty($topUsers)): ?>
@@ -612,19 +621,19 @@ function getInitials($firstname, $lastname) {
                                 <div class="podium-name-container">
                                     <?php if (isset($topUsers[1])): ?>
                                         <div class="podium-name"><?php echo htmlspecialchars($topUsers[1]['firstname'] . ' ' . $topUsers[1]['lastname']); ?></div>
-                                        <div class="podium-time"><?php echo htmlspecialchars($topUsers[1]['total_time']); ?></div>
+                                        <div class="podium-points"><?php echo htmlspecialchars($topUsers[1]['total_points']); ?> points</div>
                                     <?php endif; ?>
                                 </div>
                                 <div class="podium-name-container">
                                     <?php if (isset($topUsers[0])): ?>
                                         <div class="podium-name"><?php echo htmlspecialchars($topUsers[0]['firstname'] . ' ' . $topUsers[0]['lastname']); ?></div>
-                                        <div class="podium-time"><?php echo htmlspecialchars($topUsers[0]['total_time']); ?></div>
+                                        <div class="podium-points"><?php echo htmlspecialchars($topUsers[0]['total_points']); ?> points</div>
                                     <?php endif; ?>
                                 </div>
                                 <div class="podium-name-container">
                                     <?php if (isset($topUsers[2])): ?>
                                         <div class="podium-name"><?php echo htmlspecialchars($topUsers[2]['firstname'] . ' ' . $topUsers[2]['lastname']); ?></div>
-                                        <div class="podium-time"><?php echo htmlspecialchars($topUsers[2]['total_time']); ?></div>
+                                        <div class="podium-points"><?php echo htmlspecialchars($topUsers[2]['total_points']); ?> points</div>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -632,8 +641,8 @@ function getInitials($firstname, $lastname) {
                         
                         <div class="leaderboard-list">
                             <?php 
-                            // Find max time for progress bars
-                            $maxTime = !empty($topUsers) ? $topUsers[0]['total_seconds'] : 0;
+                            // Find max points for progress bars
+                            $maxPoints = !empty($topUsers) ? $topUsers[0]['total_points'] : 1;
                             ?>
                             
                             <?php foreach ($topUsers as $index => $user): ?>
@@ -653,10 +662,10 @@ function getInitials($firstname, $lastname) {
                                             <div class="user-name"><?php echo htmlspecialchars($user['firstname'] . ' ' . $user['lastname']); ?></div>
                                             <div class="user-course"><?php echo htmlspecialchars($user['course']); ?></div>
                                             <div class="progress-bar">
-                                                <div class="progress-fill" style="width: <?php echo ($user['total_seconds'] / $maxTime) * 100; ?>%"></div>
+                                                <div class="progress-fill" style="width: <?php echo ($user['total_points'] / $maxPoints) * 100; ?>%"></div>
                                             </div>
                                         </div>
-                                        <div class="time-spent"><?php echo htmlspecialchars($user['total_time']); ?></div>
+                                        <div class="points-earned"><?php echo htmlspecialchars($user['total_points']); ?> points</div>
                                         <?php if ($index < 6): ?>
                                             <div class="badge">Top Performer</div>
                                         <?php endif; ?>
@@ -668,7 +677,7 @@ function getInitials($firstname, $lastname) {
                         <div class="no-data">
                             <i class="fas fa-trophy text-4xl mb-4 text-gray-400"></i>
                             <p class="text-xl">No champions yet!</p>
-                            <p class="text-gray-500">Be the first to log your lab hours and appear here.</p>
+                            <p class="text-gray-500">Be the first to earn points and appear here.</p>
                         </div>
                     <?php endif; ?>
                 </div>

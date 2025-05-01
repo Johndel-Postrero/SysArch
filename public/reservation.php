@@ -138,7 +138,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
 }
 
 $reservationsQuery = $conn->prepare("
-    SELECT r.id, r.lab_number, r.pc_number, r.reservation_date, r.time_in, r.purpose, r.status, 
+    SELECT r.id, r.lab_number, r.pc_number, r.reservation_date, r.time_in, r.purpose, r.status, r.time_in_status,
            (CURRENT_TIMESTAMP >= TIMESTAMP(r.reservation_date, r.time_in)) AS is_past
     FROM reservations r 
     WHERE r.idno = ? 
@@ -309,14 +309,24 @@ $reservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('g:i A', strtotime($reservation['time_in']))); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['purpose']); ?></td>
                                             <td class="py-4 px-4 text-center">
-                                                <span class="px-2 py-1 rounded-full text-xs 
-                                                    <?php 
-                                                        if ($reservation['status'] == 'approved') echo 'bg-green-100 text-green-800';
-                                                        elseif ($reservation['status'] == 'declined') echo 'bg-red-100 text-red-800';
-                                                        else echo 'bg-yellow-100 text-yellow-800';
-                                                    ?>">
-                                                    <?php echo htmlspecialchars(ucfirst($reservation['status'])); ?>
-                                                </span>
+                                                <?php if ($reservation['time_in_status'] == 'completed'): ?>
+                                                    <span class="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                                                        Completed
+                                                    </span>
+                                                <?php elseif ($reservation['time_in_status'] == 'sit-inned'): ?>
+                                                    <span class="px-2 py-1 rounded-full text-xs bg-violet-100 text-violet-800">
+                                                        Sit-inned
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="px-2 py-1 rounded-full text-xs 
+                                                        <?php 
+                                                            if ($reservation['status'] == 'approved') echo 'bg-green-100 text-green-800';
+                                                            elseif ($reservation['status'] == 'declined') echo 'bg-red-100 text-red-800';
+                                                            else echo 'bg-yellow-100 text-yellow-800';
+                                                        ?>">
+                                                        <?php echo htmlspecialchars(ucfirst($reservation['status'])); ?>
+                                                    </span>
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -491,17 +501,23 @@ $reservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                 
                 if (data.success) {
                     let html = '';
-                    data.pcs.forEach(pc => {
-                        const isAvailable = pc.status === 'available';
-                        html += `
-                            <div class="pc-item ${isAvailable ? '' : 'unavailable'}" 
-                                data-pc="${pc.pc_number}" 
-                                onclick="${isAvailable ? 'selectPC(this)' : ''}"
-                                title="${isAvailable ? 'Available' : 'Unavailable (' + pc.status + ')'}">
-                                PC ${pc.pc_number}
-                            </div>
-                        `;
-                    });
+                    const availablePCs = data.pcs.filter(pc => pc.status === 'available');
+                    
+                    if (availablePCs.length > 0) {
+                        availablePCs.forEach(pc => {
+                            html += `
+                                <div class="pc-item" 
+                                    data-pc="${pc.pc_number}" 
+                                    onclick="selectPC(this)"
+                                    title="Available">
+                                    PC ${pc.pc_number}
+                                </div>
+                            `;
+                        });
+                    } else {
+                        html = '<p class="text-gray-500">No available PCs in this lab</p>';
+                    }
+                    
                     pcContainer.innerHTML = html;
                 } else {
                     pcContainer.innerHTML = '<p class="text-red-500">Error loading PCs: ' + data.message + '</p>';

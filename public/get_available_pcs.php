@@ -1,28 +1,30 @@
 <?php
+session_start();
 require __DIR__ . '/../config/db.php';
 
 header('Content-Type: application/json');
 
 if (!isset($_GET['lab'])) {
-    echo json_encode(['success' => false, 'message' => 'Lab number is required']);
+    echo json_encode(['success' => false, 'message' => 'Lab number not provided']);
     exit();
 }
 
-$labNumber = (int)$_GET['lab'];
+$lab_number = (int)$_GET['lab'];
+$stmt = $conn->prepare("SELECT pc_number, status FROM lab_pcs WHERE lab_number = ? AND status = 'available' ORDER BY pc_number");
+$stmt->bind_param("i", $lab_number);
+$stmt->execute();
+$result = $stmt->get_result();
 
-try {
-    $query = "SELECT pc_number, status FROM lab_pcs WHERE lab_number = ?";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("i", $labNumber);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    $pcs = [];
-    while ($row = $result->fetch_assoc()) {
-        $pcs[] = $row;
-    }
-    
-    echo json_encode(['success' => true, 'pcs' => $pcs]);
-} catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+$pcs = [];
+while ($row = $result->fetch_assoc()) {
+    $pcs[] = [
+        'pc_number' => $row['pc_number'],
+        'status' => $row['status']
+    ];
 }
+
+echo json_encode([
+    'success' => true,
+    'pcs' => $pcs
+]);
+?>

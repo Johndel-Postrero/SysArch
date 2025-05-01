@@ -29,8 +29,12 @@ if (!$user) {
     exit();
 }
 
+// Update session variables
 $_SESSION['firstname'] = $user['firstname'];
+$_SESSION['middlename'] = $user['middlename'];
 $_SESSION['lastname'] = $user['lastname'];
+$_SESSION['profile_picture'] = $user['profile_picture'];
+$_SESSION['role'] = $user['role'];
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -83,9 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($stmt->execute()) {
-        $_SESSION['login_user'] = $username;
-        echo json_encode(["success" => true, "message" => "Profile updated successfully!", "profile_picture" => $profile_picture]);
-    } else {
+      $_SESSION['login_user'] = $username;
+      $_SESSION['profile_picture'] = $profile_picture; // Add this line
+      echo json_encode(["success" => true, "message" => "Profile updated successfully!", "profile_picture" => $profile_picture]);
+    }else {
         echo json_encode(["success" => false, "message" => "Error updating profile: " . $stmt->error]);
     }
 
@@ -214,16 +219,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         })
         .then(response => response.json()) // Parse the JSON response
         .then(data => {
-            if (data.success) {
-                alert(data.message); // Show success message
-                if (data.profile_picture) {
-                    // Update preview using public URL; add a timestamp to bust cache
-                    document.getElementById("profile-picture-preview").src = "../upload/" + data.profile_picture + "?t=" + new Date().getTime();
-                }
-                location.reload(); // Reload the page to reflect changes
-            } else {
-                alert("Error: " + data.message); // Show error message
-            }
+          if (data.success) {
+              alert(data.message);
+              if (data.profile_picture) {
+                  // Update profile preview
+                  document.getElementById("profile-picture-preview").src = "../upload/" + data.profile_picture + "?t=" + new Date().getTime();
+                  
+                  // Update header image
+                  const headerProfileImg = document.querySelector('#profileDropdownBtn img');
+                  if (headerProfileImg) {
+                      headerProfileImg.src = "../upload/" + data.profile_picture + "?t=" + new Date().getTime();
+                  } else {
+                      // If it's using initials, we need to reload to show the image
+                      location.reload();
+                  }
+              }
+              // Don't reload if we updated the image dynamically
+              if (!data.profile_picture) {
+                  location.reload();
+              }
+          } else {
+              alert("Error: " + data.message);
+          }
         })
         .catch(error => {
             console.error("Fetch error:", error);
