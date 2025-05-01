@@ -203,11 +203,11 @@ $conn->close();
             <div class="flex items-center cursor-pointer" id="profileDropdownBtn">
                 <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
                     <?php 
-                    if ($profile_picture && file_exists(__DIR__ . '/../upload/' . $profile_picture)) {
-                        echo '<img src="../upload/' . htmlspecialchars($profile_picture) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
-                    } else {
-                        echo $initials;
-                    }
+                        if ($profile_picture && file_exists(__DIR__ . '/../upload/' . $profile_picture)) {
+                            echo '<img src="../upload/' . htmlspecialchars($profile_picture) . '?t=' . time() . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
+                        } else {
+                            echo $initials;
+                        }
                     ?>
                 </div>
                 <div>
