@@ -352,10 +352,10 @@ foreach ($schedules as $schedule) {
                                         }
                                     }
                                 ?>
-                                    <div class="pc-item <?php echo $pc_status; ?>">
+                                    <div class="pc-item <?php echo $pc_status; ?>" onclick="togglePcCheckbox(<?php echo $i; ?>, event)">
                                         <div class="flex items-center justify-between">
-                                            <input type="checkbox" class="pc-checkbox mr-2" data-pc="<?php echo $i; ?>">
-                                            <span class="flex-1" onclick="updatePcStatus(<?php echo $current_lab; ?>, <?php echo $i; ?>, '<?php echo $pc_status == 'available' ? 'unavailable' : 'available'; ?>')">
+                                            <input type="checkbox" class="pc-checkbox mr-2" data-pc="<?php echo $i; ?>" id="pc-checkbox-<?php echo $i; ?>">
+                                            <span>
                                                 PC <?php echo $i; ?>
                                             </span>
                                         </div>
@@ -502,6 +502,44 @@ foreach ($schedules as $schedule) {
     </div>
     
     <script>
+        // Toggle checkbox when PC card is clicked
+        function togglePcCheckbox(pcNumber, event) {
+            // Stop event propagation if clicking on the checkbox itself
+            if (event.target.tagName === 'INPUT' || event.target.tagName === 'LABEL') {
+                return;
+            }
+            
+            const checkbox = document.getElementById(`pc-checkbox-${pcNumber}`);
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                
+                // Update the select all checkbox state
+                updateSelectAllCheckbox();
+            }
+        }
+
+        // Update the select all checkbox based on current selections
+        function updateSelectAllCheckbox() {
+            const checkboxes = document.querySelectorAll('.pc-checkbox');
+            const selectAll = document.getElementById('selectAll');
+            
+            if (checkboxes.length === 0) return;
+            
+            const allChecked = Array.from(checkboxes).every(checkbox => checkbox.checked);
+            const someChecked = Array.from(checkboxes).some(checkbox => checkbox.checked);
+            
+            if (allChecked) {
+                selectAll.checked = true;
+                selectAll.indeterminate = false;
+            } else if (someChecked) {
+                selectAll.checked = false;
+                selectAll.indeterminate = true;
+            } else {
+                selectAll.checked = false;
+                selectAll.indeterminate = false;
+            }
+        }
+
         // Switch between main tabs
         function switchMainTab(tabName) {
             // Hide all tab contents
@@ -563,6 +601,12 @@ foreach ($schedules as $schedule) {
         function toggleSelectAll() {
             const checkboxes = document.querySelectorAll('.pc-checkbox');
             const selectAll = document.getElementById('selectAll');
+            
+            // If indeterminate, treat as unchecked and check all
+            if (selectAll.indeterminate) {
+                selectAll.indeterminate = false;
+                selectAll.checked = true;
+            }
             
             checkboxes.forEach(checkbox => {
                 checkbox.checked = selectAll.checked;
@@ -707,6 +751,11 @@ foreach ($schedules as $schedule) {
                     const day = this.textContent.trim();
                     changeDay(day);
                 });
+            });
+            
+            // Add change event listeners to all PC checkboxes
+            document.querySelectorAll('.pc-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', updateSelectAllCheckbox);
             });
         });
     </script>

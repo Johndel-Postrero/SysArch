@@ -72,7 +72,24 @@ try {
     }
     $checkSitin->close();
     
-    // 4. Record sit-in (without time_out)
+    // 4. Mark PC as unavailable
+    $updatePcStatus = $conn->prepare("INSERT INTO lab_pcs (lab_number, pc_number, status) 
+                                    VALUES (?, ?, 'unavailable')
+                                    ON DUPLICATE KEY UPDATE status = 'unavailable'");
+    if (!$updatePcStatus) {
+        throw new Exception("Prepare failed: " . $conn->error);
+    }
+    $updatePcStatus->bind_param("ii", 
+        $reservation['lab_number'],
+        $reservation['pc_number']
+    );
+    
+    if (!$updatePcStatus->execute()) {
+        throw new Exception("Failed to update PC status: " . $updatePcStatus->error);
+    }
+    $updatePcStatus->close();
+    
+    // 5. Record sit-in (without time_out)
     $insertSitin = $conn->prepare("INSERT INTO sitin (idno, lab_number, sitin_date, time_in, purpose) 
                                   VALUES (?, ?, ?, ?, ?)");
     if (!$insertSitin) {
@@ -91,7 +108,7 @@ try {
     }
     $insertSitin->close();
     
-    // 5. Update reservation status to 'sit-inned'
+    // 6. Update reservation status to 'sit-inned'
     $updateReservation = $conn->prepare("UPDATE reservations SET time_in_status = 'sit-inned' WHERE id = ?");
     if (!$updateReservation) {
         throw new Exception("Prepare failed: " . $conn->error);
@@ -123,7 +140,7 @@ try {
     }
 
     $response['success'] = true;
-    $response['message'] = 'Reservation successfully marked as sit-inned';
+    $response['message'] = 'Reservation successfully marked as sit-inned and PC marked as unavailable';
     
 } catch (Exception $e) {
     if (isset($conn) && $conn) {
