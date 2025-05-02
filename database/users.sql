@@ -142,3 +142,17 @@ CREATE TABLE lab_schedules (
   notes TEXT,
   UNIQUE KEY (lab_number, day_of_week, start_time, end_time)
 );
+
+DELIMITER //
+CREATE TRIGGER after_reservation_completed
+AFTER UPDATE ON reservations
+FOR EACH ROW
+BEGIN
+    IF NEW.time_in_status = 'completed' AND OLD.time_in_status != 'completed' THEN
+        UPDATE lab_pcs 
+        SET status = 'available' 
+        WHERE lab_number = NEW.lab_number 
+        AND pc_number = NEW.pc_number;
+    END IF;
+END//
+DELIMITER ;
