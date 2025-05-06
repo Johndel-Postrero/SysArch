@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submitFeedback'])) {
     }
 
     // Validate sitin_id (check if it exists in the sitin table)
-    $checkSitinQuery = "SELECT id FROM sitin WHERE id = '$sitinId'";
+    $checkSitinQuery = "SELECT sitin_id FROM sitin WHERE sitin_id = '$sitinId'";
     $checkSitinResult = $conn->query($checkSitinQuery);
 
     if ($checkSitinResult->num_rows === 0) {
@@ -231,11 +231,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submitFeedback'])) {
 // Fetch data from the sitin table (or any other relevant table)
 $loggedInUserIdno = $_SESSION['idno']; // Assuming the user's idno is stored in the session
 
-$sql = "SELECT sitin.id, sitin.idno, users.lastname, users.firstname, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, sitin.created_at,
-               feedback.id AS feedback_id
+$sql = "SELECT sitin.sitin_id, sitin.idno, users.lastname, users.firstname, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, sitin.created_at,
+               feedback.feedback_id AS feedback_id
         FROM sitin 
         JOIN users ON sitin.idno = users.idno
-        LEFT JOIN feedback ON sitin.id = feedback.sitin_id AND feedback.user_id = '{$_SESSION['user_id']}'
+        LEFT JOIN feedback ON sitin.sitin_id = feedback.sitin_id AND feedback.user_id = '{$_SESSION['user_id']}'
         WHERE sitin.time_out IS NOT NULL AND sitin.idno = '$loggedInUserIdno'"; // Filter by logged-in user's idno
 
 $result = $conn->query($sql);
@@ -313,6 +313,7 @@ $conn->close();
             background-color: rgba(0, 0, 0, 0.5);
             justify-content: center;
             align-items: center;
+            z-index: 100;
         }
         .modal-content {
             background-color: white;
@@ -360,6 +361,7 @@ $conn->close();
                                 Entries per page
                             </label>
                             <select class="border border-gray-300 rounded-md p-2" id="entries">
+                                <option value="all" selected>All</option>
                                 <option value="5">5</option>
                                 <option value="10">10</option>
                                 <option value="25">25</option>
@@ -397,17 +399,17 @@ $conn->close();
                                     <span>Sort</span>
                                 </button>
                                 <div id="sortDropdown" class="dropdown-content absolute left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border border-gray-200 w-32 hidden">
-                                    <a href="#" data-sort="az" class="block px-4 py-2 hover:bg-gray-100">A-Z</a>
-                                    <a href="#" data-sort="za" class="block px-4 py-2 hover:bg-gray-100">Z-A</a>
-                                    <a href="#" data-sort="newest" class="block px-4 py-2 hover:bg-gray-100">Newest</a>
-                                    <a href="#" data-sort="oldest" class="block px-4 py-2 hover:bg-gray-100">Oldest</a>
+                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="asc">A-Z</a>
+                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="desc">Z-A</a>
+                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="newest">Newest</a>
+                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="oldest">Oldest</a>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <!-- Table -->
                     <div class="overflow-x-auto">
-                        <table class="min-w-full bg-white shadow-md rounded-lg">
+                        <table id="sitinTable" class="min-w-full bg-white shadow-md rounded-lg">
                             <thead>
                                 <tr class="bg-[#002044] text-white">
                                     <th class="py-4 px-4 text-center">LABORATORY</th>
@@ -431,7 +433,7 @@ $conn->close();
                                                 <?php if (!empty($sitin['feedback_id'])): ?>
                                                     <span class="text-gray-500">Done</span>
                                                 <?php else: ?>
-                                                    <a href="#" class="feedback-link text-blue-500" data-id="<?php echo $sitin['id']; ?>">Feedback</a>
+                                                    <a href="#" class="feedback-link text-blue-500" data-id="<?php echo $sitin['sitin_id']; ?>">Feedback</a>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
@@ -443,6 +445,12 @@ $conn->close();
                                 <?php endif; ?>
                             </tbody>
                         </table>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div class="flex justify-between items-center mt-4">
+                        <div class="text-gray-600" id="paginationInfo"></div>
+                        <div class="flex space-x-2" id="paginationControls"></div>
                     </div>
                 </div>
             </div>      
@@ -463,7 +471,7 @@ $conn->close();
                     <span class="star" data-value="5">&#9733;</span>
                 </div>
                 <input type="hidden" name="rating" id="ratingInput" value="0">
-                <textarea class="w-full p-2 border border-gray-300 rounded-md mt-4" name="message" placeholder="Your message..." rows="4"></textarea>
+                <textarea class="w-full p-2 border border-gray-300 rounded-md mt-4" name="message" placeholder="Your message..." rows="4" required></textarea>
                 <div class="flex justify-end mt-4">
                     <button type="submit" name="submitFeedback" id="submitFeedback" class="bg-blue-500 text-white px-4 py-2 rounded-md">Submit</button>
                     <button type="button" id="closeModal" class="ml-2 bg-gray-500 text-white px-4 py-2 rounded-md">Close</button>
@@ -473,55 +481,372 @@ $conn->close();
     </div>
 
     <script>
-        // Feedback Modal Logic
-        const feedbackLinks = document.querySelectorAll('.feedback-link');
+        // Global variables for pagination
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentSort = 'newest'; // Default sort
+        let currentFilter = 'all'; // Default filter
+
+        // Initialize dropdown functionality
+        document.querySelectorAll('.dropdown').forEach(dropdown => {
+            dropdown.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const dropdownContent = this.querySelector('.dropdown-content');
+                if (dropdownContent) {
+                    dropdownContent.classList.toggle('hidden');
+                }
+            });
+        });
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.dropdown')) {
+                document.querySelectorAll('.dropdown-content').forEach(dropdown => {
+                    dropdown.classList.add('hidden');
+                });
+            }
+        });
+
+        // Search Functionality
+        document.getElementById('searchInput').addEventListener('input', function() {
+            currentPage = 1;
+            filterTable();
+        });
+
+        // Sort functionality
+        document.getElementById('sortButton').addEventListener('click', function() {
+            const dropdown = document.getElementById('sortDropdown');
+            dropdown.classList.toggle('hidden');
+        });
+
+        document.querySelectorAll('#sortDropdown a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const sortType = this.getAttribute('data-sort');
+                const rows = Array.from(document.querySelectorAll('#sitinTable tbody tr'));
+
+                rows.sort((a, b) => {
+                    if (sortType === 'asc') {
+                        const aText = a.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                        const bText = b.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                        return aText.localeCompare(bText);
+                    } else if (sortType === 'desc') {
+                        const aText = a.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                        const bText = b.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                        return bText.localeCompare(aText);
+                    } else if (sortType === 'newest') {
+                        const aDate = new Date(a.querySelector('td:nth-child(5)').textContent);
+                        const bDate = new Date(b.querySelector('td:nth-child(5)').textContent);
+                        return bDate - aDate;
+                    } else if (sortType === 'oldest') {
+                        const aDate = new Date(a.querySelector('td:nth-child(5)').textContent);
+                        const bDate = new Date(b.querySelector('td:nth-child(5)').textContent);
+                        return aDate - bDate;
+                    }
+                });
+
+                const tbody = document.querySelector('#sitinTable tbody');
+                tbody.innerHTML = '';
+                rows.forEach(row => tbody.appendChild(row));
+            });
+        });
+
+        // Close Sort Dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const sortButton = document.getElementById('sortButton');
+            const sortDropdown = document.getElementById('sortDropdown');
+            if (!sortButton.contains(event.target) && !sortDropdown.contains(event.target)) {
+                sortDropdown.classList.add('hidden');
+            }
+        });
+
+        // Filter Functionality
+        document.querySelectorAll('#filterDropdown a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                currentFilter = this.getAttribute('data-filter');
+                currentPage = 1;
+                filterTable();
+                document.getElementById('filterDropdown').classList.add('hidden');
+            });
+        });
+
+        // Main filter function with pagination
+        function filterTable() {
+            const searchValue = document.getElementById('searchInput').value.toLowerCase();
+            const entriesPerPage = document.getElementById('entries').value;
+            
+            const rows = document.querySelectorAll('#sitinTable tbody tr');
+            let visibleRows = [];
+            let totalVisible = 0;
+
+            // First pass: filter rows by search and filter
+            rows.forEach((row) => {
+                const cells = row.querySelectorAll('td');
+                let match = searchValue === '';
+                
+                if (searchValue !== '') {
+                    cells.forEach(cell => {
+                        if (cell.textContent.toLowerCase().includes(searchValue)) {
+                            match = true;
+                        }
+                    });
+                }
+
+                // Apply filter
+                if (match) {
+                    const statusCell = row.querySelector('td:last-child');
+                    const status = statusCell.textContent.trim().toLowerCase();
+                    
+                    if (currentFilter === 'all' || 
+                        (currentFilter === 'done' && status === 'done') ||
+                        (currentFilter === 'not-done' && status !== 'done')) {
+                        visibleRows.push(row);
+                        totalVisible++;
+                    }
+                }
+            });
+
+            // Sort the visible rows
+            sortVisibleRows(visibleRows);
+
+            // Show all rows if "All" is selected
+            if (entriesPerPage === "all") {
+                rows.forEach(row => row.style.display = 'none');
+                visibleRows.forEach(row => row.style.display = '');
+                updatePaginationControls(totalVisible, true);
+                return;
+            }
+
+            // Calculate total pages for paginated results
+            const entriesNum = parseInt(entriesPerPage);
+            totalPages = Math.ceil(totalVisible / entriesNum);
+            if (currentPage > totalPages && totalPages > 0) {
+                currentPage = totalPages;
+            } else if (totalPages === 0) {
+                currentPage = 1;
+            }
+
+            // Second pass: show/hide rows based on pagination
+            const startIndex = (currentPage - 1) * entriesNum;
+            const endIndex = startIndex + entriesNum;
+
+            rows.forEach(row => row.style.display = 'none');
+            visibleRows.slice(startIndex, endIndex).forEach(row => row.style.display = '');
+
+            // Update pagination controls
+            updatePaginationControls(totalVisible, false);
+        }
+
+        // Sort visible rows based on current sort type
+        function sortVisibleRows(rows) {
+            rows.sort((a, b) => {
+                const aPurpose = a.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                const bPurpose = b.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                const aDate = a.querySelector('td:nth-child(5)').textContent;
+                const bDate = b.querySelector('td:nth-child(5)').textContent;
+
+                switch (currentSort) {
+                    case 'az':
+                        return aPurpose.localeCompare(bPurpose);
+                    case 'za':
+                        return bPurpose.localeCompare(aPurpose);
+                    case 'newest':
+                        return new Date(bDate) - new Date(aDate);
+                    case 'oldest':
+                        return new Date(aDate) - new Date(bDate);
+                    default:
+                        return 0;
+                }
+            });
+        }
+
+        // Update pagination controls
+        function updatePaginationControls(totalVisible, showAll) {
+            const entriesPerPage = document.getElementById('entries').value;
+            const paginationInfo = document.getElementById('paginationInfo');
+            const paginationControls = document.getElementById('paginationControls');
+            
+            if (entriesPerPage === "all" || showAll) {
+                paginationInfo.textContent = `Showing all ${totalVisible} entries`;
+                paginationControls.innerHTML = '';
+                return;
+            }
+            
+            const entriesNum = parseInt(entriesPerPage);
+            const startEntry = totalVisible === 0 ? 0 : (currentPage - 1) * entriesNum + 1;
+            const endEntry = Math.min(currentPage * entriesNum, totalVisible);
+            
+            paginationInfo.textContent = `Showing ${startEntry} to ${endEntry} of ${totalVisible} entries`;
+            paginationControls.innerHTML = '';
+            
+            // Previous button
+            const prevButton = document.createElement('button');
+            prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+            prevButton.className = `px-3 py-1 rounded-md border ${currentPage === 1 ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+            prevButton.disabled = currentPage === 1;
+            prevButton.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    filterTable();
+                }
+            });
+            paginationControls.appendChild(prevButton);
+            
+            // Page numbers
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+            
+            if (startPage > 1) {
+                const firstPageButton = document.createElement('button');
+                firstPageButton.textContent = '1';
+                firstPageButton.className = 'px-3 py-1 rounded-md border bg-white text-[#002044] hover:bg-gray-100';
+                firstPageButton.addEventListener('click', () => {
+                    currentPage = 1;
+                    filterTable();
+                });
+                paginationControls.appendChild(firstPageButton);
+                
+                if (startPage > 2) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.className = 'px-2 py-1';
+                    paginationControls.appendChild(ellipsis);
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.textContent = i;
+                pageButton.className = `px-3 py-1 rounded-md border ${i === currentPage ? 'bg-[#002044] text-white' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+                pageButton.addEventListener('click', () => {
+                    currentPage = i;
+                    filterTable();
+                });
+                paginationControls.appendChild(pageButton);
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.className = 'px-2 py-1';
+                    paginationControls.appendChild(ellipsis);
+                }
+                
+                const lastPageButton = document.createElement('button');
+                lastPageButton.textContent = totalPages;
+                lastPageButton.className = 'px-3 py-1 rounded-md border bg-white text-[#002044] hover:bg-gray-100';
+                lastPageButton.addEventListener('click', () => {
+                    currentPage = totalPages;
+                    filterTable();
+                });
+                paginationControls.appendChild(lastPageButton);
+            }
+            
+            // Next button
+            const nextButton = document.createElement('button');
+            nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
+            nextButton.className = `px-3 py-1 rounded-md border ${currentPage === totalPages ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+            nextButton.disabled = currentPage === totalPages;
+            nextButton.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    filterTable();
+                }
+            });
+            paginationControls.appendChild(nextButton);
+        }
+
+        // Entries per page functionality
+        document.getElementById('entries').addEventListener('change', function() {
+            currentPage = 1;
+            filterTable();
+        });
+
+        // Initialize table on page load
+        filterTable();
+
+        // Feedback Modal Functionality
         const modal = document.getElementById('feedbackModal');
         const closeModal = document.getElementById('closeModal');
-        const stars = document.querySelectorAll('.star-rating .star');
+        const stars = document.querySelectorAll('.star');
         const ratingInput = document.getElementById('ratingInput');
+        const submitFeedback = document.getElementById('submitFeedback');
 
-        feedbackLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
+        // Open modal when clicking feedback link
+        document.querySelectorAll('.feedback-link').forEach(link => {
+            link.addEventListener('click', function(e) {
                 e.preventDefault();
-                const sitinId = link.getAttribute('data-id');
-                document.getElementById('sitinIdInput').value = sitinId; // Set the hidden input value
+                const sitinId = this.getAttribute('data-id');
+                document.getElementById('sitinIdInput').value = sitinId;
                 modal.style.display = 'flex';
             });
         });
 
+        // Close modal
         closeModal.addEventListener('click', () => {
             modal.style.display = 'none';
+            resetRating();
         });
 
+        // Close modal when clicking outside
         window.addEventListener('click', (e) => {
             if (e.target === modal) {
                 modal.style.display = 'none';
+                resetRating();
             }
         });
 
+        // Star rating functionality
         stars.forEach(star => {
-            star.addEventListener('click', () => {
-                const value = star.getAttribute('data-value');
-                ratingInput.value = value; // Set the hidden input value
-                stars.forEach(s => s.classList.remove('selected'));
-                for (let i = 0; i < value; i++) {
-                    stars[i].classList.add('selected');
-                }
+            star.addEventListener('click', function() {
+                const value = this.getAttribute('data-value');
+                ratingInput.value = value;
+                updateStars(value);
+            });
+
+            star.addEventListener('mouseover', function() {
+                const value = this.getAttribute('data-value');
+                updateStars(value);
             });
         });
 
-        // Entries per page functionality
-        document.getElementById('entries').addEventListener('change', function() {
-            const selectedValue = parseInt(this.value); // Get the selected value (10, 25, or 50)
-            const rows = document.querySelectorAll('#sitinTable tbody tr'); // Get all table rows
+        // Reset stars when mouse leaves the rating container
+        document.querySelector('.star-rating').addEventListener('mouseleave', function() {
+            const currentRating = ratingInput.value;
+            updateStars(currentRating);
+        });
 
-            rows.forEach((row, index) => {
-                if (index < selectedValue) {
-                    row.style.display = ''; // Show rows up to the selected value
+        function updateStars(value) {
+            stars.forEach(star => {
+                const starValue = star.getAttribute('data-value');
+                if (starValue <= value) {
+                    star.style.color = '#ffcc00';
                 } else {
-                    row.style.display = 'none'; // Hide the rest
+                    star.style.color = '#ccc';
                 }
             });
+        }
+
+        function resetRating() {
+            ratingInput.value = '0';
+            stars.forEach(star => {
+                star.style.color = '#ccc';
+            });
+        }
+
+        // Form submission validation
+        document.querySelector('form').addEventListener('submit', function(e) {
+            if (ratingInput.value === '0') {
+                e.preventDefault();
+                alert('Please select a rating before submitting.');
+            }
         });
     </script>
 </body>

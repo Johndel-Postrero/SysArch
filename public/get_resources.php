@@ -6,10 +6,10 @@ if (!isset($_GET['id'])) {
     exit();
 }
 
-$resourceId = (int)$_GET['id'];
+$resourceId = (int)$_GET['resource_id'];
 
 // Fetch resource details
-$query = "SELECT * FROM resources WHERE id = $resourceId";
+$query = "SELECT * FROM resources WHERE resource_id = $resourceId";
 $result = $conn->query($query);
 
 if ($result && $result->num_rows > 0) {

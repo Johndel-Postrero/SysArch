@@ -24,12 +24,12 @@ $conn->begin_transaction();
 
 try {
     // Get user ID
-    $userQuery = $conn->prepare("SELECT id FROM users WHERE idno = ?");
+    $userQuery = $conn->prepare("SELECT user_id FROM users WHERE idno = ?");
     $userQuery->bind_param("i", $idno);
     $userQuery->execute();
     $userResult = $userQuery->get_result();
     $user = $userResult->fetch_assoc();
-    $user_id = $user['id'];
+    $user_id = $user['user_id'];
     $userQuery->close();
 
     // 1. Insert reward record

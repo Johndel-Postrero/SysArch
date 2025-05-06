@@ -129,12 +129,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $admin_id = $_SESSION['user_id'];
         
         // Verify ownership
-        $check = $conn->prepare("SELECT id FROM resources WHERE id = ? AND admin_id = ?");
+        $check = $conn->prepare("SELECT resource_id FROM resources WHERE resource_id = ? AND admin_id = ?");
         $check->bind_param("ii", $id, $admin_id);
         $check->execute();
         
         if ($check->get_result()->num_rows > 0) {
-            $stmt = $conn->prepare("UPDATE resources SET title = ? WHERE id = ?");
+            $stmt = $conn->prepare("UPDATE resources SET title = ? WHERE resource_id = ?");
             $stmt->bind_param("si", $new_name, $id);
             $stmt->execute();
             $stmt->close();
@@ -153,7 +153,7 @@ $current_folder = isset($_GET['folder']) ? (int)$_GET['folder'] : null;
 $query = "
     SELECT r.*, u.firstname, u.lastname 
     FROM resources r
-    JOIN users u ON r.admin_id = u.id
+    JOIN users u ON r.admin_id = u.user_id
     WHERE r.parent_id " . ($current_folder ? "= $current_folder" : "IS NULL") . "
     ORDER BY r.is_folder DESC, r.uploaded_at DESC
 ";
@@ -169,7 +169,7 @@ if (isset($_GET['delete'])) {
     $admin_id = $_SESSION['user_id'];
     
     // Check if resource belongs to admin
-    $check = $conn->prepare("SELECT id, file_name, is_folder FROM resources WHERE id = ? AND admin_id = ?");
+    $check = $conn->prepare("SELECT resource_id, file_name, is_folder FROM resources WHERE resource_id = ? AND admin_id = ?");
     $check->bind_param("ii", $id, $admin_id);
     $check->execute();
     $result = $check->get_result();
@@ -180,7 +180,7 @@ if (isset($_GET['delete'])) {
         if ($resource['is_folder']) {
             // First get all files in this folder and subfolders to delete from filesystem
             $files_to_delete = [];
-            $query = "SELECT id, file_name FROM resources WHERE (id = ? OR parent_id = ?) AND is_folder = 0";
+            $query = "SELECT resource_id, file_name FROM resources WHERE (resource_id = ? OR parent_id = ?) AND is_folder = 0";
             $stmt = $conn->prepare($query);
             $stmt->bind_param("ii", $id, $id);
             $stmt->execute();
@@ -191,21 +191,33 @@ if (isset($_GET['delete'])) {
             }
             
             // Delete the folder and its contents from database
-            $conn->query("DELETE FROM resources WHERE id = $id OR parent_id = $id");
+            $delete_stmt = $conn->prepare("DELETE FROM resources WHERE resource_id = ? OR parent_id = ?");
+            $delete_stmt->bind_param("ii", $id, $id);
+            $delete_success = $delete_stmt->execute();
             
-            // Now delete all the files
-            foreach ($files_to_delete as $file_path) {
-                if (file_exists($file_path)) {
-                    unlink($file_path);
+            if ($delete_success) {
+                // Now delete all the files
+                foreach ($files_to_delete as $file_path) {
+                    if (file_exists($file_path)) {
+                        unlink($file_path);
+                    }
                 }
+            } else {
+                $_SESSION['error'] = "Failed to delete folder from database";
             }
         } else {
             // Delete single file
             $file_path = __DIR__ . '/../resources/' . $resource['file_name'];
             if (file_exists($file_path)) {
-                unlink($file_path);
+                if (!unlink($file_path)) {
+                    $_SESSION['error'] = "Failed to delete file from filesystem";
+                }
             }
-            $conn->query("DELETE FROM resources WHERE id = $id");
+            $delete_stmt = $conn->prepare("DELETE FROM resources WHERE resource_id = ?");
+            $delete_stmt->bind_param("i", $id);
+            if (!$delete_stmt->execute()) {
+                $_SESSION['error'] = "Failed to delete file record from database";
+            }
         }
     }
     
@@ -218,7 +230,7 @@ $breadcrumbs = [];
 if ($current_folder) {
     $folder_id = $current_folder;
     while ($folder_id) {
-        $folder_query = "SELECT id, title, parent_id FROM resources WHERE id = $folder_id";
+        $folder_query = "SELECT resource_id, title, parent_id FROM resources WHERE resource_id = $folder_id";
         $folder_result = $conn->query($folder_query);
         if ($folder_result && $folder_result->num_rows > 0) {
             $folder = $folder_result->fetch_assoc();
@@ -491,7 +503,7 @@ function processFolderStructure($structure, $parent_id, $admin_id, $conn) {
                             </a>
                             <?php foreach ($breadcrumbs as $crumb): ?>
                                 <span class="breadcrumb-item">
-                                    <a href="resourcesad.php?folder=<?php echo $crumb['id']; ?>" 
+                                    <a href="resourcesad.php?folder=<?php echo $crumb['resource_id']; ?>" 
                                        class="text-violet-600 hover:text-violet-800">
                                         <?php echo htmlspecialchars($crumb['title']); ?>
                                     </a>
@@ -624,7 +636,7 @@ function processFolderStructure($structure, $parent_id, $admin_id, $conn) {
                                      data-name="<?php echo htmlspecialchars(strtolower($row['title'])); ?>"
                                      data-date="<?php echo strtotime($row['uploaded_at']); ?>"
                                      data-size="<?php echo $row['file_size'] ?? 0; ?>"
-                                     data-id="<?php echo $row['id']; ?>">
+                                     data-id="<?php echo $row['resource_id']; ?>">
                                     
                                     <!-- Main content - clickable area -->
                                     <div class="flex items-start h-full cursor-pointer resource-main">
@@ -655,13 +667,13 @@ function processFolderStructure($structure, $parent_id, $admin_id, $conn) {
                                         </button>
                                         <div class="resource-menu">
                                             <?php if ($is_folder): ?>
-                                                <a href="resourcesad.php?folder=<?php echo $row['id']; ?>"><i class="fas fa-folder-open mr-2"></i>Open</a>
+                                                <a href="resourcesad.php?folder=<?php echo $row['resource_id']; ?>"><i class="fas fa-folder-open mr-2"></i>Open</a>
                                             <?php else: ?>
-                                                <a href="#" class="preview-file" data-id="<?php echo $row['id']; ?>"><i class="fas fa-eye mr-2"></i>Preview</a>
-                                                <a href="<?php echo $file_path; ?>" download="<?php echo htmlspecialchars($row['file_name']); ?>"><i class="fas fa-download mr-2"></i>Download</a>
+                                                <a href="#" class="preview-file" data-id="<?php echo $row['resource_id']; ?>"><i class="fas fa-eye mr-2"></i>Preview</a>
+                                                <a href="../resources/<?php echo htmlspecialchars($row['file_name']); ?>" download="<?php echo htmlspecialchars($row['file_name']); ?>"><i class="fas fa-download mr-2"></i>Download</a>
                                             <?php endif; ?>
-                                            <a href="#" class="rename-resource" data-id="<?php echo $row['id']; ?>" data-name="<?php echo htmlspecialchars($row['title']); ?>"><i class="fas fa-edit mr-2"></i>Rename</a>
-                                            <a href="#" class="delete-resource" data-id="<?php echo $row['id']; ?>"><i class="fas fa-trash mr-2"></i>Delete</a>
+                                            <a href="#" class="rename-resource" data-id="<?php echo $row['resource_id']; ?>" data-name="<?php echo htmlspecialchars($row['title']); ?>"><i class="fas fa-edit mr-2"></i>Rename</a>
+                                            <a href="#" class="delete-resource" data-id="<?php echo $row['resource_id']; ?>"><i class="fas fa-trash mr-2"></i>Delete</a>
                                         </div>
                                     </div>
                                 </div>
@@ -1202,7 +1214,7 @@ printPreview.addEventListener('click', function() {
         // Function to preview a resource
 // Function to preview a resource
 function previewResource(resourceId) {
-    fetch('get_resource.php?id=' + resourceId)
+    fetch('get_resource.php?resource_id=' + resourceId)
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok');

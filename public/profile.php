@@ -12,15 +12,8 @@ if (!isset($_SESSION['login_user'])) {
 
 require __DIR__ . '/../config/db.php';
 
-// Fetch available courses from the database
-$courses = [];
-$course_sql = "SELECT course_name FROM courses"; // Adjust table/column names if necessary
-$course_result = $conn->query($course_sql);
-if ($course_result && $course_result->num_rows > 0) {
-    while ($row = $course_result->fetch_assoc()) {
-        $courses[] = $row;
-    }
-}
+// Define available courses based on the enum values
+$courses = ['BSIT', 'BSCS', 'HM', 'CRIM', 'CBA'];
 
 // Fetch user details
 $current_username = $_SESSION['login_user'];
@@ -244,14 +237,13 @@ i.fas.fa-chevron-down.ml-auto.sidebar-text.text-xs.transform.group-hover\:rotate
             </div>
             <div class="form-group">
               <div class="form-wrapper" style="width: 50%; margin-right: 25px;">
-                <select class="form-control" id="course" name="course">
-                  <option value="" disabled>Select Course</option>
-                  <?php foreach ($courses as $course_item): ?>
-                    <option value="<?php echo htmlspecialchars($course_item['course_name']); ?>"
-                      <?php echo (isset($user['course']) && $user['course'] === $course_item['course_name']) ? 'selected' : ''; ?>>
-                      <?php echo htmlspecialchars($course_item['course_name']); ?>
-                    </option>
-                  <?php endforeach; ?>
+                <select class="form-control" id="course" name="course" required>
+                    <option value="" disabled>Select Course</option>
+                    <?php foreach ($courses as $course_item): ?>
+                        <option value="<?php echo htmlspecialchars($course_item); ?>" <?php echo ($user['course'] === $course_item) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($course_item); ?>
+                        </option>
+                    <?php endforeach; ?>
                 </select>
                 <i class="zmdi zmdi-caret-down" style="font-size: 17px; bottom: 30px;"></i>
               </div>

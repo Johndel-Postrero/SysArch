@@ -18,17 +18,17 @@ if (!isset($_SESSION['login_user'])) {
 
 require __DIR__ . '/../../config/db.php';
 
-if (!isset($_GET['id'])) {
+if (!isset($_GET['resource_id'])) {
     header("HTTP/1.1 400 Bad Request");
     echo json_encode(['error' => 'Resource ID is required']);
     exit();
 }
 
-$id = (int)$_GET['id'];
+$id = (int)$_GET['resource_id'];
 $admin_id = $_SESSION['user_id'];
 
 // Get resource details
-$stmt = $conn->prepare("SELECT * FROM resources WHERE id = ? AND admin_id = ?");
+$stmt = $conn->prepare("SELECT * FROM resources WHERE resource_id = ? AND admin_id = ?");
 $stmt->bind_param("ii", $id, $admin_id);
 $stmt->execute();
 $result = $stmt->get_result();

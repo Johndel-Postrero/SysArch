@@ -16,24 +16,6 @@ if ($lab === 'all') {
     
     foreach ($labs as $labNum) {
         $stmt = $conn->prepare("
-            SELECT id, TIME_FORMAT(start_time, '%H:%i') as start_time, 
-                   TIME_FORMAT(end_time, '%H:%i') as end_time, 
-                   status, reason 
-            FROM lab_schedule 
-            WHERE schedule_type = 'specific' 
-              AND specific_date = ? 
-              AND lab_number = ?
-            ORDER BY start_time
-        ");
-        $stmt->bind_param("ss", $date, $labNum);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        $schedules[$labNum] = $result->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-    }
-} else {
-    $stmt = $conn->prepare("
         SELECT id, TIME_FORMAT(start_time, '%H:%i') as start_time, 
                TIME_FORMAT(end_time, '%H:%i') as end_time, 
                status, reason 
@@ -43,6 +25,24 @@ if ($lab === 'all') {
           AND lab_number = ?
         ORDER BY start_time
     ");
+        $stmt->bind_param("ss", $date, $labNum);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $schedules[$labNum] = $result->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+    }
+} else {
+    $stmt = $conn->prepare("
+    SELECT id, TIME_FORMAT(start_time, '%H:%i') as start_time, 
+           TIME_FORMAT(end_time, '%H:%i') as end_time, 
+           status, reason 
+    FROM lab_schedule 
+    WHERE schedule_type = 'specific' 
+      AND specific_date = ? 
+      AND lab_number = ?
+    ORDER BY start_time
+");
     $stmt->bind_param("ss", $date, $lab);
     $stmt->execute();
     $result = $stmt->get_result();

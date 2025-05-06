@@ -27,7 +27,7 @@ $current_folder = isset($_GET['folder']) ? (int)$_GET['folder'] : null;
 $query = "
     SELECT r.*, u.firstname, u.lastname 
     FROM resources r
-    JOIN users u ON r.admin_id = u.id
+    JOIN users u ON r.admin_id = u.user_id
     WHERE r.parent_id " . ($current_folder ? "= $current_folder" : "IS NULL") . "
     ORDER BY r.is_folder DESC, r.uploaded_at DESC
 ";
@@ -42,7 +42,7 @@ $breadcrumbs = [];
 if ($current_folder) {
     $folder_id = $current_folder;
     while ($folder_id) {
-        $folder_query = "SELECT id, title, parent_id FROM resources WHERE id = $folder_id";
+        $folder_query = "SELECT resource_id, title, parent_id FROM resources WHERE resource_id = $folder_id";
         $folder_result = $conn->query($folder_query);
         if ($folder_result && $folder_result->num_rows > 0) {
             $folder = $folder_result->fetch_assoc();
@@ -228,7 +228,7 @@ function formatFileSize($bytes) {
                             </a>
                             <?php foreach ($breadcrumbs as $crumb): ?>
                                 <span class="breadcrumb-item">
-                                    <a href="resources.php?folder=<?php echo $crumb['id']; ?>" 
+                                    <a href="resources.php?folder=<?php echo $crumb['resource_id']; ?>" 
                                        class="text-violet-600 hover:text-violet-800">
                                         <?php echo htmlspecialchars($crumb['title']); ?>
                                     </a>
@@ -341,7 +341,7 @@ function formatFileSize($bytes) {
                                      data-name="<?php echo htmlspecialchars(strtolower($row['title'])); ?>"
                                      data-date="<?php echo strtotime($row['uploaded_at']); ?>"
                                      data-size="<?php echo $row['file_size'] ?? 0; ?>"
-                                     data-id="<?php echo $row['id']; ?>">
+                                     data-id="<?php echo $row['resource_id']; ?>">
                                     
                                     <!-- Main content - clickable area -->
                                     <div class="flex items-start h-full cursor-pointer resource-main">
@@ -372,9 +372,9 @@ function formatFileSize($bytes) {
                                         </button>
                                         <div class="resource-menu">
                                             <?php if ($is_folder): ?>
-                                                <a href="resources.php?folder=<?php echo $row['id']; ?>"><i class="fas fa-folder-open mr-2"></i>Open</a>
+                                                <a href="resources.php?folder=<?php echo $row['resource_id']; ?>"><i class="fas fa-folder-open mr-2"></i>Open</a>
                                             <?php else: ?>
-                                                <a href="#" class="preview-file" data-id="<?php echo $row['id']; ?>"><i class="fas fa-eye mr-2"></i>Preview</a>
+                                                <a href="#" class="preview-file" data-id="<?php echo $row['resource_id']; ?>"><i class="fas fa-eye mr-2"></i>Preview</a>
                                                 <a href="<?php echo $file_path; ?>" download="<?php echo htmlspecialchars($row['file_name']); ?>"><i class="fas fa-download mr-2"></i>Download</a>
                                             <?php endif; ?>
                                         </div>

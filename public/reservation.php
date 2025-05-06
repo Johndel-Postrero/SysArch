@@ -25,21 +25,110 @@ if (!$user) {
     exit();
 }
 
+// Function to check upcoming reservations (5 minutes before)
+function checkUpcomingReservations($conn, $userId) {
+    $now = new DateTime();
+    $currentDate = $now->format('Y-m-d');
+    $currentTime = $now->format('H:i:00');
+    
+    // Calculate time 5 minutes from now
+    $fiveMinutesLater = clone $now;
+    $fiveMinutesLater->add(new DateInterval('PT2M'));
+    $futureTime = $fiveMinutesLater->format('H:i:00');
+    
+    $query = $conn->prepare("
+        SELECT r.reservation_id, r.lab_number, r.pc_number, r.reservation_date, r.time_in, 
+               TIMESTAMPDIFF(MINUTE, NOW(), CONCAT(r.reservation_date, ' ', r.time_in)) AS minutes_left
+        FROM reservations r
+        WHERE r.idno = ? 
+        AND r.reservation_date = ?
+        AND r.time_in BETWEEN ? AND ?
+        AND r.status = 'approved'
+        AND r.time_in_status = 'pending'
+        AND NOT EXISTS (
+            SELECT 1 FROM notifications n 
+            WHERE n.user_id = ? 
+            AND n.message LIKE CONCAT('%Your reservation for Lab ', r.lab_number, ', PC ', r.pc_number, ' will start in 2 minutes%')
+            AND DATE(n.created_at) = ?
+        )
+    ");
+    
+    $query->bind_param("isssis", $userId, $currentDate, $currentTime, $futureTime, $userId, $currentDate);
+    $query->execute();
+    $result = $query->get_result();
+    
+    $upcomingReservations = [];
+    while ($row = $result->fetch_assoc()) {
+        $upcomingReservations[] = $row;
+    }
+    
+    return $upcomingReservations;
+}
+
+// Handle AJAX requests for upcoming reservations
+// Handle AJAX requests for upcoming reservations
+if ($_SERVER["REQUEST_METHOD"] == "GET" && isset($_GET['check_upcoming'])) {
+    header('Content-Type: application/json');
+    
+    try {
+        $upcomingReservations = checkUpcomingReservations($conn, $user['idno']);
+        $notifications = [];
+        
+        foreach ($upcomingReservations as $reservation) {
+            $minutesLeft = $reservation['minutes_left'];
+            $message = "Your reservation for Lab {$reservation['lab_number']}, PC {$reservation['pc_number']} " . 
+                      "will start in 2 minutes at " . date('g:i A', strtotime($reservation['time_in']));
+            
+            // Save notification to database
+            saveStudentNotification($message, $user['idno'], $conn);
+            
+            $notifications[] = [
+                'message' => $message,
+                'reservation_id' => $reservation['reservation_id'],
+                'time_in' => $reservation['time_in'],
+                'reservation_date' => $reservation['reservation_date']
+            ];
+        }
+        
+        echo json_encode([
+            'success' => true,
+            'has_upcoming' => !empty($notifications),
+            'notifications' => $notifications
+        ]);
+    } catch (Exception $e) {
+        echo json_encode([
+            'success' => false,
+            'message' => $e->getMessage()
+        ]);
+    }
+    exit();
+}
+
 // Notification functions
 function saveAdminNotification($message, $conn) {
     $stmt = $conn->prepare("INSERT INTO notifications (message, notification_type) VALUES (?, 'admin')");
     $stmt->bind_param("s", $message);
     $stmt->execute();
     $stmt->close();
+    
+    // Debug logging
+    error_log("Admin notification saved: $message");
 }
 
 function saveStudentNotification($message, $userId, $conn) {
     $stmt = $conn->prepare("INSERT INTO notifications (message, user_id, notification_type) VALUES (?, ?, 'student')");
     $stmt->bind_param("si", $message, $userId);
-    $stmt->execute();
+    $result = $stmt->execute();
+    
+    // Debug logging
+    if ($result) {
+        error_log("Student notification saved for user $userId: $message");
+    } else {
+        error_log("Failed to save student notification: " . $stmt->error);
+    }
+    
     $stmt->close();
 }
-
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
     header('Content-Type: application/json');
@@ -75,7 +164,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
             throw new Exception("Reservations allowed between 7am-8pm only");
         }
         
-        $checkQuery = $conn->prepare("SELECT id FROM reservations WHERE idno = ? AND reservation_date = ? AND time_in = ?");
+        $checkQuery = $conn->prepare("SELECT reservation_id FROM reservations WHERE idno = ? AND reservation_date = ? AND time_in = ?");
         $checkQuery->bind_param("iss", $idno, $reservation_date, $time_24hr);
         $checkQuery->execute();
         $checkQuery->store_result();
@@ -85,7 +174,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
         }
         
         $pcCheckQuery = $conn->prepare("
-            SELECT id FROM reservations 
+            SELECT reservation_id FROM reservations 
             WHERE lab_number = ? AND pc_number = ? AND reservation_date = ? AND time_in = ?
         ");
         $pcCheckQuery->bind_param("iiss", $lab_number, $pc_number, $reservation_date, $time_24hr);
@@ -138,7 +227,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
 }
 
 $reservationsQuery = $conn->prepare("
-    SELECT r.id, r.lab_number, r.pc_number, r.reservation_date, r.time_in, r.purpose, r.status, r.time_in_status,
+    SELECT r.reservation_id, r.lab_number, r.pc_number, r.reservation_date, r.time_in, r.purpose, r.status, r.time_in_status,
            (CURRENT_TIMESTAMP >= TIMESTAMP(r.reservation_date, r.time_in)) AS is_past
     FROM reservations r 
     WHERE r.idno = ? 
@@ -244,6 +333,63 @@ $reservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
             background-color: #ffcccc;
             cursor: not-allowed;
         }
+
+        /* Notification Styles */
+        .notification-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #002044;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-width: 300px;
+            max-width: 400px;
+            z-index: 9999;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        .notification-toast.hide {
+            animation: slideOut 0.5s ease-out forwards;
+        }
+
+        .notification-close {
+            cursor: pointer;
+            margin-left: 15px;
+            font-size: 20px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .notification-close:hover {
+            opacity: 1;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased">
@@ -333,6 +479,12 @@ $reservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
                                 <?php endif; ?>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="flex justify-between items-center mt-4">
+                        <div class="text-gray-600" id="paginationInfo"></div>
+                        <div class="flex space-x-2" id="paginationControls"></div>
                     </div>
                 </div>
             </div>
@@ -575,38 +727,283 @@ $reservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
             }
         });
 
-        // Table filtering and search functionality
-        document.getElementById('entries').addEventListener('change', function() {
-            const selectedValue = this.value;
+        // Global variables for pagination
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentSort = 'newest'; // Default sort
+
+        // Main filter function with pagination
+        function filterTable() {
+            const searchValue = document.getElementById('searchInput').value.toLowerCase();
+            const entriesPerPage = document.getElementById('entries').value;
+            
             const rows = document.querySelectorAll('#sitinTable tbody tr');
+            let visibleRows = [];
+            let totalVisible = 0;
+
+            // First pass: filter rows by search and count visible rows
+            rows.forEach((row) => {
+                const cells = row.querySelectorAll('td');
+                let match = searchValue === '';
+                
+                if (searchValue !== '') {
+                    cells.forEach(cell => {
+                        if (cell.textContent.toLowerCase().includes(searchValue)) {
+                            match = true;
+                        }
+                    });
+                }
+
+                if (match) {
+                    visibleRows.push(row);
+                    totalVisible++;
+                }
+            });
+
+            // Sort the visible rows
+            sortVisibleRows(visibleRows);
+
+            // Show all rows if "All" is selected
+            if (entriesPerPage === "all") {
+                rows.forEach(row => row.style.display = 'none');
+                visibleRows.forEach(row => row.style.display = '');
+                updatePaginationControls(totalVisible, true);
+                return;
+            }
+
+            // Calculate total pages for paginated results
+            const entriesNum = parseInt(entriesPerPage);
+            totalPages = Math.ceil(totalVisible / entriesNum);
+            if (currentPage > totalPages && totalPages > 0) {
+                currentPage = totalPages;
+            } else if (totalPages === 0) {
+                currentPage = 1;
+            }
+
+            // Second pass: show/hide rows based on pagination
+            const startIndex = (currentPage - 1) * entriesNum;
+            const endIndex = startIndex + entriesNum;
+
+            rows.forEach(row => row.style.display = 'none');
+            visibleRows.slice(startIndex, endIndex).forEach(row => row.style.display = '');
+
+            // Update pagination controls
+            updatePaginationControls(totalVisible, false);
+        }
+
+        // Sort visible rows based on current sort type
+        function sortVisibleRows(rows) {
+            rows.sort((a, b) => {
+                const aDate = a.querySelector('td:nth-child(3)').textContent;
+                const bDate = b.querySelector('td:nth-child(3)').textContent;
+
+                switch (currentSort) {
+                    case 'newest':
+                        return new Date(bDate) - new Date(aDate);
+                    case 'oldest':
+                        return new Date(aDate) - new Date(bDate);
+                    default:
+                        return 0;
+                }
+            });
+        }
+
+        // Update pagination controls
+        function updatePaginationControls(totalVisible, showAll) {
+            const entriesPerPage = document.getElementById('entries').value;
+            const paginationInfo = document.getElementById('paginationInfo');
+            const paginationControls = document.getElementById('paginationControls');
             
-            rows.forEach(row => row.style.display = '');
+            if (entriesPerPage === "all" || showAll) {
+                paginationInfo.textContent = `Showing all ${totalVisible} entries`;
+                paginationControls.innerHTML = '';
+                return;
+            }
             
-            if (selectedValue !== "all") {
-                const numEntries = parseInt(selectedValue);
-                rows.forEach((row, index) => {
-                    if (index >= numEntries) {
-                        row.style.display = 'none';
+            const entriesNum = parseInt(entriesPerPage);
+            const startEntry = totalVisible === 0 ? 0 : (currentPage - 1) * entriesNum + 1;
+            const endEntry = Math.min(currentPage * entriesNum, totalVisible);
+            
+            paginationInfo.textContent = `Showing ${startEntry} to ${endEntry} of ${totalVisible} entries`;
+            paginationControls.innerHTML = '';
+            
+            // Previous button
+            const prevButton = document.createElement('button');
+            prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+            prevButton.className = `px-3 py-1 rounded-md border ${currentPage === 1 ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+            prevButton.disabled = currentPage === 1;
+            prevButton.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    filterTable();
+                }
+            });
+            paginationControls.appendChild(prevButton);
+            
+            // Page numbers
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+            
+            if (startPage > 1) {
+                const firstPageButton = document.createElement('button');
+                firstPageButton.textContent = '1';
+                firstPageButton.className = 'px-3 py-1 rounded-md border bg-white text-[#002044] hover:bg-gray-100';
+                firstPageButton.addEventListener('click', () => {
+                    currentPage = 1;
+                    filterTable();
+                });
+                paginationControls.appendChild(firstPageButton);
+                
+                if (startPage > 2) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.className = 'px-2 py-1';
+                    paginationControls.appendChild(ellipsis);
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.textContent = i;
+                pageButton.className = `px-3 py-1 rounded-md border ${i === currentPage ? 'bg-[#002044] text-white' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+                pageButton.addEventListener('click', () => {
+                    currentPage = i;
+                    filterTable();
+                });
+                paginationControls.appendChild(pageButton);
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.className = 'px-2 py-1';
+                    paginationControls.appendChild(ellipsis);
+                }
+                
+                const lastPageButton = document.createElement('button');
+                lastPageButton.textContent = totalPages;
+                lastPageButton.className = 'px-3 py-1 rounded-md border bg-white text-[#002044] hover:bg-gray-100';
+                lastPageButton.addEventListener('click', () => {
+                    currentPage = totalPages;
+                    filterTable();
+                });
+                paginationControls.appendChild(lastPageButton);
+            }
+            
+            // Next button
+            const nextButton = document.createElement('button');
+            nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
+            nextButton.className = `px-3 py-1 rounded-md border ${currentPage === totalPages ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+            nextButton.disabled = currentPage === totalPages;
+            nextButton.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    filterTable();
+                }
+            });
+            paginationControls.appendChild(nextButton);
+        }
+
+        // Entries per page functionality
+        document.getElementById('entries').addEventListener('change', function() {
+            currentPage = 1;
+            filterTable();
+        });
+
+        // Initialize table on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            filterTable();
+        });
+
+        // Enhanced notification system
+// Enhanced notification system
+function showNotification(message, duration = 10000) {
+    // Remove any existing notifications
+    const existingNotifications = document.querySelectorAll('.notification-toast');
+    existingNotifications.forEach(notification => notification.remove());
+
+    // Create toast notification
+    const toast = document.createElement('div');
+    toast.className = 'notification-toast';
+    toast.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas fa-bell mr-3"></i>
+            <span>${message}</span>
+        </div>
+        <span class="notification-close">&times;</span>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Close button functionality
+    const closeBtn = toast.querySelector('.notification-close');
+    closeBtn.addEventListener('click', () => {
+        toast.classList.add('hide');
+        setTimeout(() => toast.remove(), 500);
+    });
+    
+    // Auto-close after duration
+    setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => toast.remove(), 500);
+    }, duration);
+
+    // Play notification sound if available
+    try {
+        const audio = new Audio('notification-sound.mp3');
+        audio.play().catch(e => console.log('Audio play failed:', e));
+    } catch (e) {
+        console.log('Audio not available:', e);
+    }
+}
+
+// Improved check for upcoming reservations
+function checkForUpcomingReservations() {
+    fetch('reservation.php?check_upcoming=1')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.has_upcoming) {
+                data.notifications.forEach(notification => {
+                    // Show toast notification
+                    showNotification(notification.message, 1000);
+                    
+                    // Also show browser notification if available
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        new Notification('Reservation Reminder', {
+                            body: notification.message,
+                            icon: 'notification-icon.png'
+                        });
                     }
                 });
             }
+        })
+        .catch(error => {
+            console.error('Error checking reservations:', error);
+            showNotification("Error checking reservations. Please refresh the page.", 1000);
         });
+}
 
-        document.getElementById('searchInput').addEventListener('input', function() {
-            const searchValue = this.value.toLowerCase();
-            const rows = document.querySelectorAll('#sitinTable tbody tr');
-            
-            rows.forEach(row => {
-                let match = false;
-                for (let i = 0; i < row.cells.length - 1; i++) {
-                    if (row.cells[i].textContent.toLowerCase().includes(searchValue)) {
-                        match = true;
-                        break;
-                    }
-                }
-                row.style.display = match ? '' : 'none';
-            });
+// Request notification permission and set up checks
+document.addEventListener('DOMContentLoaded', function() {
+    // Request notification permission
+    if ('Notification' in window) {
+        Notification.requestPermission().then(permission => {
+            console.log('Notification permission:', permission);
         });
+    }
+    
+    // First check right away
+    checkForUpcomingReservations();
+    
+    // Then check every 30 seconds for more timely notifications
+    setInterval(checkForUpcomingReservations, 30 * 1000);
+});
     </script>
 </body>
 </html>

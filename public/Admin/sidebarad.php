@@ -152,7 +152,7 @@ body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; 
                     <i class="fas fa-comment-dots mr-3"></i> Feedback
                 </a>
                 <a href="labsched.php" class="flex items-center py-2 px-4 text-white hover:bg-blue-600 rounded-lg mx-2 text-sm">
-                    <i class="fas fa-comment-dots mr-3"></i> Lab Schedule
+                    <i class="fas fa-comment-dots mr-3"></i> Computer & Lab
                 </a>
             </div>
         </div>

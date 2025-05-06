@@ -10,13 +10,13 @@ if (!isset($_SESSION['login_user'])) {
 }
 
 // Get reservation ID from POST data
-if (!isset($_POST['id'])) {
+if (!isset($_POST['reservation_id'])) {
     header("HTTP/1.1 400 Bad Request");
     echo json_encode(["success" => false, "message" => "Reservation ID is required"]);
     exit();
 }
 
-$reservationId = $_POST['id'];
+$reservationId = $_POST['reservation_id'];
 $username = $_SESSION['login_user'];
 
 try {
@@ -25,10 +25,10 @@ try {
 
     // 1. Verify the reservation belongs to the current user
     $verifyQuery = $conn->prepare("
-        SELECT r.id 
+        SELECT r.reservation_id 
         FROM reservations r
         JOIN users u ON r.idno = u.idno
-        WHERE r.id = ? AND u.username = ? AND r.status = 'pending'
+        WHERE r.reservation_id = ? AND u.username = ? AND r.status = 'pending'
     ");
     $verifyQuery->bind_param("is", $reservationId, $username);
     $verifyQuery->execute();
@@ -38,7 +38,7 @@ try {
     }
 
     // 2. Delete the reservation
-    $deleteQuery = $conn->prepare("DELETE FROM reservations WHERE id = ?");
+    $deleteQuery = $conn->prepare("DELETE FROM reservations WHERE reservation_id = ?");
     $deleteQuery->bind_param("i", $reservationId);
     
     if (!$deleteQuery->execute()) {

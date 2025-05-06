@@ -4,8 +4,8 @@ require __DIR__ . '/../../config/db.php';
 if (isset($_GET['idno'])) {
     $idno = $_GET['idno'];
     $sql = "SELECT idno, lastname, firstname, username, middlename, course, level, email, session, profile_picture
-            FROM users
-            WHERE idno = ?";
+    FROM users
+    WHERE idno = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("s", $idno);
     $stmt->execute();

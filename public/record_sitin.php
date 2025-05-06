@@ -30,7 +30,7 @@ try {
                TIMESTAMPDIFF(MINUTE, NOW(), TIMESTAMP(r.reservation_date, r.time_in)) AS minutes_remaining,
                TIMESTAMPDIFF(MINUTE, TIMESTAMP(r.reservation_date, r.time_in), NOW()) AS minutes_passed
         FROM reservations r
-        WHERE r.id = ? AND r.status = 'approved'
+        WHERE r.reservation_id = ? AND r.status = 'approved'
     ");
     $reservationQuery->bind_param("i", $reservationId);
     $reservationQuery->execute();
@@ -51,7 +51,7 @@ try {
 
     // 3. Check if user already has an active sit-in (not timed out)
     $activeCheckQuery = $conn->prepare("
-        SELECT id FROM sitin 
+        SELECT sitin_id FROM sitin 
         WHERE idno = ? AND time_out IS NULL
     ");
     $activeCheckQuery->bind_param("i", $reservation['idno']);

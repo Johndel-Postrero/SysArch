@@ -25,15 +25,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Fetch existing attachment if no new file is uploaded
     if ($post_id && empty($_FILES['attachment']['name'])) {
-        $query = $conn->prepare("SELECT attachment FROM announcements WHERE id = ?");
-        $query->bind_param("i", $post_id);
-        $query->execute();
-        $result = $query->get_result();
-        if ($result->num_rows > 0) {
-            $row = $result->fetch_assoc();
-            $attachment = $row['attachment'];
+        $query = $conn->prepare("SELECT attachment FROM announcements WHERE announcement_id = ?");
+        if ($query) {
+            $query->bind_param("i", $post_id);
+            $query->execute();
+            $result = $query->get_result();
+            if ($result->num_rows > 0) {
+                $row = $result->fetch_assoc();
+                $attachment = $row['attachment'];
+            }
+            $query->close();
+        } else {
+            // Handle query preparation error
+            echo "<script>alert('Error preparing query: " . $conn->error . "');</script>";
         }
-        $query->close();
     }
 
     // File Upload Handling
@@ -52,26 +57,46 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if ($post_id) {
         // Update existing post
-        $stmt = $conn->prepare("UPDATE announcements SET title = ?, description = ?, attachment = ? WHERE id = ?");
-        $stmt->bind_param("sssi", $title, $description, $attachment, $post_id);
+        $stmt = $conn->prepare("UPDATE announcements SET title = ?, description = ?, attachment = ? WHERE announcement_id = ?");
+        if ($stmt) {
+            $stmt->bind_param("sssi", $title, $description, $attachment, $post_id);
+        } else {
+            // Handle statement preparation error
+            echo "<script>alert('Error preparing update statement: " . $conn->error . "');</script>";
+        }
     } else {
         // Insert new post
         $stmt = $conn->prepare("INSERT INTO announcements (title, description, attachment, admin_id) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("sssi", $title, $description, $attachment, $admin_id);
+        if ($stmt) {
+            $stmt->bind_param("sssi", $title, $description, $attachment, $admin_id);
+        } else {
+            // Handle statement preparation error
+            echo "<script>alert('Error preparing insert statement: " . $conn->error . "');</script>";
+        }
     }
 
-    if ($stmt->execute()) {
-        echo "<script>alert('Post " . ($post_id ? "updated" : "added") . " successfully!'); window.location='Cannouncement.php';</script>";
-    } else {
-        echo "<script>alert('Error " . ($post_id ? "updating" : "adding") . " post!');</script>";
+    if (isset($stmt) && $stmt) {
+        if ($stmt->execute()) {
+            echo "<script>alert('Post " . ($post_id ? "updated" : "added") . " successfully!'); window.location='Cannouncement.php';</script>";
+        } else {
+            echo "<script>alert('Error " . ($post_id ? "updating" : "adding") . " post: " . $stmt->error . "');</script>";
+        }
+        $stmt->close();
     }
-    $stmt->close();
 }
 
 // Fetch announcements from the database (this runs regardless of form submission)
-$query = "SELECT * FROM announcements ORDER BY created_at DESC";
+$query = "SELECT a.*, u.firstname, u.middlename, u.lastname, u.profile_picture 
+          FROM announcements a 
+          JOIN users u ON a.admin_id = u.user_id 
+          ORDER BY a.created_at DESC";
 $result = $conn->query($query);
 
+// Get user initials for avatar fallback
+$initials = "";
+if (isset($_SESSION['firstname']) && isset($_SESSION['lastname'])) {
+    $initials = strtoupper(substr($_SESSION['firstname'], 0, 1) . substr($_SESSION['lastname'], 0, 1));
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -161,6 +186,13 @@ $result = $conn->query($query);
             transform: translateY(-2px);
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
+        /* Style for dropdown content */
+        .dropdown-content {
+            display: none;
+        }
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased">
@@ -171,7 +203,7 @@ $result = $conn->query($query);
         <!-- Main Content -->
         <div class="main-content flex-1 flex flex-col">
             <!-- Include Header -->
-            <?php include 'headerad.php'; ?>
+            <?php include 'headerad1.php'; ?>
             <div class="flex-1 p-6 flex justify-center items-center">
                 <div class="main-con p-6 max-w-4xl w-full">
                     <!-- Search and Filter -->
@@ -184,7 +216,7 @@ $result = $conn->query($query);
                             </div>
 
                             <div class="relative dropdown flex flex-col items-center">
-                                <button class="flex items-center space-x-2 text-gray-600 relative z-[-1]">
+                                <button class="flex items-center space-x-2 text-gray-600">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
                                     </svg>
@@ -209,7 +241,7 @@ $result = $conn->query($query);
                     <!-- Modal -->
                     <div id="overlay">
                         <div id="overlay-content">
-                            <button id="closeOverlay" class="absolute top-3 right-3 text-gray-600 hover:text-gray-800" onclick="closeModal()">
+                            <button id="closeOverlay" class="absolute top-3 right-3 text-gray-600 hover:text-gray-800">
                                 <i class="fas fa-times text-xl"></i>
                             </button>
                             <h2 id="modalTitle" class="text-xl font-bold text-center mb-4">Add Post</h2>
@@ -237,19 +269,21 @@ $result = $conn->query($query);
                     <div id="announcement-container" class="space-y-4">
                         <?php if ($result && $result->num_rows > 0): ?>
                             <?php while ($row = $result->fetch_assoc()): ?>
-                                <div class="bg-white rounded-lg shadow p-6 mb-4 cursor-pointer clickable-card" onclick="openUpdateModal(<?php echo $row['id']; ?>)">
+                                <div class="bg-white rounded-lg shadow p-6 mb-4 cursor-pointer clickable-card" onclick="openUpdateModal(<?php echo $row['announcement_id']; ?>)">
                                     <div class="flex items-center mb-4">
                                         <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
                                             <?php 
-                                            if (isset($_SESSION['profile_picture']) && file_exists(__DIR__ . '/../upload/' . $_SESSION['profile_picture'])) {
-                                                echo '<img src="../upload/' . htmlspecialchars($_SESSION['profile_picture']) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
+                                            if (isset($row['profile_picture']) && file_exists(__DIR__ . '/../upload/' . $row['profile_picture'])) {
+                                                echo '<img src="../upload/' . htmlspecialchars($row['profile_picture']) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
                                             } else {
-                                                echo $initials;
+                                                // Use initials from the post creator
+                                                $userInitials = strtoupper(substr($row['firstname'], 0, 1) . substr($row['lastname'], 0, 1));
+                                                echo $userInitials;
                                             }
                                             ?>
                                         </div>
                                         <div class="ml-4">
-                                            <p class="font-semibold"><?php echo htmlspecialchars($_SESSION['firstname'] . ' ' . $_SESSION['middlename'] . ' ' . $_SESSION['lastname']); ?> · Admin</p>
+                                            <p class="font-semibold"><?php echo htmlspecialchars($row['firstname'] . ' ' . $row['middlename'] . ' ' . $row['lastname']); ?> · Admin</p>
                                             <p class="text-sm text-gray-500"><?php echo date("M j, Y", strtotime($row['created_at'])); ?></p>
                                         </div>
                                     </div>
@@ -310,7 +344,9 @@ $result = $conn->query($query);
             });
 
             // Close modal
-            closeOverlayBtn.addEventListener("click", () => overlay.style.display = "none");
+            closeOverlayBtn.addEventListener("click", () => {
+                overlay.style.display = "none";
+            });
 
             // Handle file preview
             fileInput.addEventListener("change", function (event) {
@@ -337,12 +373,12 @@ $result = $conn->query($query);
 
         // Function to open modal in "Update Post" mode
         function openUpdateModal(postId) {
-            fetch(`get_post.php?id=${postId}`)
+            fetch(`get_post.php?announcement_id=${postId}`)
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById("modalTitle").textContent = "Update Post";
                     document.getElementById("submitButton").textContent = "Update";
-                    document.getElementById("post_id").value = data.id; // Set post ID
+                    document.getElementById("post_id").value = data.announcement_id; // Set post ID
                     document.getElementById("modalTitleInput").value = data.title; // Set title
                     document.getElementById("modalDescriptionInput").value = data.description; // Set description
 
@@ -393,7 +429,6 @@ $result = $conn->query($query);
                 }
             }
         }
-        
     </script>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
@@ -445,6 +480,5 @@ $result = $conn->query($query);
             announcements.forEach(announcement => announcementContainer.appendChild(announcement));
         }
     </script>
-
 </body>
 </html>

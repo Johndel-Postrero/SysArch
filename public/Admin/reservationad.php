@@ -15,7 +15,7 @@ if (!isset($_SESSION['login_user'])) {
 require __DIR__ . '/../../config/db.php';
 
 // Fetch pending reservations
-$pendingSql = "SELECT r.id, r.idno, u.lastname, u.firstname, u.middlename, u.course, u.level, 
+$pendingSql = "SELECT r.reservation_id, r.idno, u.lastname, u.firstname, u.middlename, u.course, u.level, 
                r.lab_number, r.pc_number, r.reservation_date, r.time_in, r.purpose, r.status, r.created_at
         FROM reservations r
         JOIN users u ON r.idno = u.idno
@@ -31,7 +31,7 @@ if ($pendingResult->num_rows > 0) {
 }
 
 // Fetch approved reservations that haven't been timed in yet
-$approvedSql = "SELECT r.id, r.idno, u.lastname, u.firstname, u.middlename, u.course, u.level, 
+$approvedSql = "SELECT r.reservation_id, r.idno, u.lastname, u.firstname, u.middlename, u.course, u.level, 
                r.lab_number, r.pc_number, r.reservation_date, r.time_in, r.purpose, r.status, r.created_at
         FROM reservations r
         JOIN users u ON r.idno = u.idno
@@ -48,7 +48,7 @@ if ($approvedResult->num_rows > 0) {
 
 // Fetch reservation logs (declined/sit-inned)
 // Fetch reservation logs (declined/sit-inned/completed)
-$logsSql = "SELECT r.id, r.idno, u.lastname, u.firstname, u.middlename, u.course, u.level, 
+$logsSql = "SELECT r.reservation_id, r.idno, u.lastname, u.firstname, u.middlename, u.course, u.level, 
            r.lab_number, r.pc_number, r.reservation_date, r.time_in, r.purpose, 
            CASE 
                WHEN r.status = 'declined' THEN 'declined'
@@ -216,25 +216,14 @@ $conn->close();
                                             <option value="544">544</option>
                                         </select>
                                     </div>
-                                    <div class="p-2">
-                                        <label class="block text-sm font-medium text-gray-700">Course</label>
-                                        <select id="courseFilter" class="w-full border border-gray-300 rounded-md p-2 mt-1">
-                                            <option value="">All Courses</option>
-                                            <option value="BSIT">BSIT</option>
-                                            <option value="BSCS">BSCS</option>
-                                            <option value="HM">HM</option>
-                                            <option value="CRIM">CRIM</option>
-                                            <option value="CBA">CBA</option>
-                                        </select>
-                                    </div>
-                                    <div class="p-2">
-                                        <label class="block text-sm font-medium text-gray-700">Year Level</label>
-                                        <select id="levelFilter" class="w-full border border-gray-300 rounded-md p-2 mt-1">
-                                            <option value="">All Levels</option>
-                                            <option value="1">1st Year</option>
-                                            <option value="2">2nd Year</option>
-                                            <option value="3">3rd Year</option>
-                                            <option value="4">4th Year</option>
+                                    <div id="statusFilterContainer" class="p-2 hidden">
+                                        <label class="block text-sm font-medium text-gray-700">Status</label>
+                                        <select id="statusFilter" class="w-full border border-gray-300 rounded-md p-2 mt-1">
+                                            <option value="">All Status</option>
+                                            <option value="approved">Approved</option>
+                                            <option value="declined">Declined</option>
+                                            <option value="sit-inned">Sit-Inned</option>
+                                            <option value="completed">Completed</option>
                                         </select>
                                     </div>
                                 </div>
@@ -250,10 +239,10 @@ $conn->close();
                                 </button>
                                 <!-- Dropdown menu -->
                                 <div id="sortDropdown" class="dropdown-content absolute left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border border-gray-200 w-32 hidden">
-                                    <a href="#" data-sort="date-asc" class="block px-4 py-2 hover:bg-gray-100">Date (Oldest)</a>
-                                    <a href="#" data-sort="date-desc" class="block px-4 py-2 hover:bg-gray-100">Date (Newest)</a>
                                     <a href="#" data-sort="name-asc" class="block px-4 py-2 hover:bg-gray-100">Name (A-Z)</a>
                                     <a href="#" data-sort="name-desc" class="block px-4 py-2 hover:bg-gray-100">Name (Z-A)</a>
+                                    <a href="#" data-sort="date-asc" class="block px-4 py-2 hover:bg-gray-100">Date (Oldest)</a>
+                                    <a href="#" data-sort="date-desc" class="block px-4 py-2 hover:bg-gray-100">Date (Newest)</a>
                                 </div>
                             </div>
                         </div>
@@ -298,11 +287,11 @@ $conn->close();
                                                 <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['purpose']); ?></td>
                                                 <td class="py-4 px-4 text-center">
                                                     <div class="flex justify-center space-x-2">
-                                                        <button onclick="approveReservation(<?php echo $reservation['id']; ?>)" 
+                                                        <button onclick="approveReservation(<?php echo $reservation['reservation_id']; ?>)" 
                                                             class="bg-blue-500 text-white px-4 py-2 rounded">
                                                             Approve
                                                         </button>
-                                                        <button onclick="declineReservation(<?php echo $reservation['id']; ?>)" 
+                                                        <button onclick="declineReservation(<?php echo $reservation['reservation_id']; ?>)" 
                                                             class="bg-red-500 text-white px-4 py-2 rounded">
                                                             Decline
                                                         </button>
@@ -354,7 +343,7 @@ $conn->close();
                                                 </td>
                                                 <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['purpose']); ?></td>
                                                 <td class="py-4 px-4 text-center">
-                                                    <button onclick="timeInReservation(<?php echo $reservation['id']; ?>)" 
+                                                    <button onclick="timeInReservation(<?php echo $reservation['reservation_id']; ?>)" 
                                                         class="bg-blue-500 text-white px-4 py-2 rounded">
                                                         Time In
                                                     </button>
@@ -456,8 +445,15 @@ $conn->close();
             // Reset search and filters when switching tabs
             document.getElementById('searchInput').value = '';
             document.getElementById('labFilter').value = '';
-            document.getElementById('courseFilter').value = '';
-            document.getElementById('levelFilter').value = '';
+            document.getElementById('statusFilter').value = '';
+            
+            // Show/hide status filter based on tab
+            const statusFilterContainer = document.getElementById('statusFilterContainer');
+            if (tabName === 'logs') {
+                statusFilterContainer.classList.remove('hidden');
+            } else {
+                statusFilterContainer.classList.add('hidden');
+            }
             
             // Reset table display
             const tableId = tabName + 'Table';
@@ -511,27 +507,27 @@ $conn->close();
 
         // Filter functionality
         document.getElementById('labFilter').addEventListener('change', filterTable);
-        document.getElementById('courseFilter').addEventListener('change', filterTable);
-        document.getElementById('levelFilter').addEventListener('change', filterTable);
+        document.getElementById('statusFilter').addEventListener('change', filterTable);
 
         function filterTable() {
             const labValue = document.getElementById('labFilter').value.toLowerCase();
-            const courseValue = document.getElementById('courseFilter').value.toLowerCase();
-            const levelValue = document.getElementById('levelFilter').value.toLowerCase();
+            const statusValue = document.getElementById('statusFilter').value.toLowerCase();
+            const activeTab = document.querySelector('.tab-content.active').id;
             
             const activeTable = document.querySelector('.tab-content.active').querySelector('table');
             const rows = activeTable.querySelectorAll('tbody tr');
             
             rows.forEach(row => {
-                const labCell = row.cells[3].textContent.toLowerCase();
-                const courseCell = row.cells[2].textContent.toLowerCase();
-                const levelCell = row.cells[2].textContent.toLowerCase();
-                
+                const labCell = row.cells[2].textContent.toLowerCase(); // Lab column is index 2
                 const matchesLab = labValue ? labCell.includes(labValue) : true;
-                const matchesCourse = courseValue ? courseCell.includes(courseValue) : true;
-                const matchesLevel = levelValue ? levelCell.includes(levelValue) : true;
                 
-                row.style.display = matchesLab && matchesCourse && matchesLevel ? '' : 'none';
+                let matchesStatus = true;
+                if (activeTab === 'logsContent' && statusValue) {
+                    const statusCell = row.cells[7].textContent.toLowerCase(); // Status column is index 7
+                    matchesStatus = statusCell.includes(statusValue);
+                }
+                
+                row.style.display = matchesLab && matchesStatus ? '' : 'none';
             });
         }
 
@@ -550,18 +546,18 @@ $conn->close();
             
             rows.sort((a, b) => {
                 switch (sortType) {
-                    case 'date-asc':
-                        const dateA = new Date(a.cells[5].textContent);
-                        const dateB = new Date(b.cells[5].textContent);
-                        return dateA - dateB;
-                    case 'date-desc':
-                        const dateADesc = new Date(a.cells[5].textContent);
-                        const dateBDesc = new Date(b.cells[5].textContent);
-                        return dateBDesc - dateADesc;
                     case 'name-asc':
                         return a.cells[1].textContent.localeCompare(b.cells[1].textContent);
                     case 'name-desc':
                         return b.cells[1].textContent.localeCompare(a.cells[1].textContent);
+                    case 'date-asc':
+                        const dateA = new Date(a.cells[4].textContent + ' ' + a.cells[5].textContent);
+                        const dateB = new Date(b.cells[4].textContent + ' ' + b.cells[5].textContent);
+                        return dateA - dateB;
+                    case 'date-desc':
+                        const dateADesc = new Date(a.cells[4].textContent + ' ' + a.cells[5].textContent);
+                        const dateBDesc = new Date(b.cells[4].textContent + ' ' + b.cells[5].textContent);
+                        return dateBDesc - dateADesc;
                     default:
                         return 0;
                 }
@@ -608,7 +604,7 @@ $conn->close();
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: `id=${reservationId}&status=${status}`
+        body: `reservation_id=${reservationId}&status=${status}`
     })
     .then(response => {
         if (!response.ok) {
@@ -639,7 +635,7 @@ function timeInReservation(reservationId) {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `id=${reservationId}`
+            body: `reservation_id=${reservationId}`
         })
         .then(response => {
             // First check if the response is JSON
