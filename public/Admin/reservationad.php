@@ -233,7 +233,7 @@ $conn->close();
                             <div class="relative dropdown">
                                 <button id="sortButton" class="flex items-center space-x-2 text-gray-600 relative">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
                                     </svg>
                                     <span>Sort</span>
                                 </button>
@@ -303,6 +303,11 @@ $conn->close();
                                 </tbody>
                             </table>
                         </div>
+                        <!-- Pagination for Pending -->
+                        <div class="flex justify-between items-center mt-4">
+                            <div class="text-gray-600" id="pendingPaginationInfo"></div>
+                            <div class="flex space-x-2" id="pendingPaginationControls"></div>
+                        </div>
                     </div>
 
                     <!-- Approved Reservations Tab Content -->
@@ -353,6 +358,11 @@ $conn->close();
                                     <?php endif; ?>
                                 </tbody>
                             </table>
+                        </div>
+                        <!-- Pagination for Approved -->
+                        <div class="flex justify-between items-center mt-4">
+                            <div class="text-gray-600" id="approvedPaginationInfo"></div>
+                            <div class="flex space-x-2" id="approvedPaginationControls"></div>
                         </div>
                     </div>
 
@@ -419,6 +429,11 @@ $conn->close();
                                 </tbody>
                             </table>
                         </div>
+                        <!-- Pagination for Logs -->
+                        <div class="flex justify-between items-center mt-4">
+                            <div class="text-gray-600" id="logsPaginationInfo"></div>
+                            <div class="flex space-x-2" id="logsPaginationControls"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -426,6 +441,10 @@ $conn->close();
     </div>
 
     <script>
+        // Global variables for pagination
+        let currentPage = 1;
+        let totalPages = 1;
+
         // Tab switching functionality
         function switchTab(tabName) {
             // Hide all tab contents
@@ -455,135 +474,192 @@ $conn->close();
                 statusFilterContainer.classList.add('hidden');
             }
             
-            // Reset table display
-            const tableId = tabName + 'Table';
-            const rows = document.querySelectorAll(`#${tableId} tbody tr`);
-            rows.forEach(row => row.style.display = '');
+            // Reset to first page when switching tabs
+            currentPage = 1;
+            
+            // Reset table display and update pagination
+            filterTable();
         }
 
-        // Initialize table with all entries visible by default
-        function initializeTable() {
-            const pendingRows = document.querySelectorAll('#pendingTable tbody tr');
-            const logsRows = document.querySelectorAll('#logsTable tbody tr');
-            
-            pendingRows.forEach(row => row.style.display = '');
-            logsRows.forEach(row => row.style.display = '');
-        }
-        initializeTable();
-
-        // Entries per page functionality
-        document.getElementById('entries').addEventListener('change', function() {
-            const selectedValue = this.value;
-            const activeTable = document.querySelector('.tab-content.active').querySelector('table');
-            const rows = activeTable.querySelectorAll('tbody tr');
-            
-            if (selectedValue === "all") {
-                rows.forEach(row => row.style.display = '');
-            } else {
-                const numEntries = parseInt(selectedValue);
-                rows.forEach((row, index) => {
-                    row.style.display = index < numEntries ? '' : 'none';
-                });
-            }
-        });
-
-        // Search functionality
-        document.getElementById('searchInput').addEventListener('input', function() {
-            const searchValue = this.value.toLowerCase();
-            const activeTable = document.querySelector('.tab-content.active').querySelector('table');
-            const rows = activeTable.querySelectorAll('tbody tr');
-            
-            rows.forEach(row => {
-                let match = false;
-                for (let i = 0; i < row.cells.length - 1; i++) { // Skip actions column
-                    if (row.cells[i].textContent.toLowerCase().includes(searchValue)) {
-                        match = true;
-                        break;
-                    }
-                }
-                row.style.display = match ? '' : 'none';
-            });
-        });
-
-        // Filter functionality
-        document.getElementById('labFilter').addEventListener('change', filterTable);
-        document.getElementById('statusFilter').addEventListener('change', filterTable);
-
+        // Main filter function with pagination
         function filterTable() {
+            const searchValue = document.getElementById('searchInput').value.toLowerCase();
             const labValue = document.getElementById('labFilter').value.toLowerCase();
             const statusValue = document.getElementById('statusFilter').value.toLowerCase();
+            const entriesPerPage = document.getElementById('entries').value;
             const activeTab = document.querySelector('.tab-content.active').id;
             
             const activeTable = document.querySelector('.tab-content.active').querySelector('table');
             const rows = activeTable.querySelectorAll('tbody tr');
-            
-            rows.forEach(row => {
-                const labCell = row.cells[2].textContent.toLowerCase(); // Lab column is index 2
-                const matchesLab = labValue ? labCell.includes(labValue) : true;
-                
+            let visibleRows = [];
+            let totalVisible = 0;
+
+            // First pass: count all matching rows
+            rows.forEach((row) => {
+                const cells = row.querySelectorAll('td');
+                const labCell = cells[2].textContent.toLowerCase();
+                let matchesSearch = searchValue ? 
+                    Array.from(cells).some(cell => cell.textContent.toLowerCase().includes(searchValue)) : true;
+                let matchesLab = labValue ? labCell.includes(labValue) : true;
                 let matchesStatus = true;
+
                 if (activeTab === 'logsContent' && statusValue) {
-                    const statusCell = row.cells[7].textContent.toLowerCase(); // Status column is index 7
+                    const statusCell = cells[7].textContent.toLowerCase();
                     matchesStatus = statusCell.includes(statusValue);
                 }
-                
-                row.style.display = matchesLab && matchesStatus ? '' : 'none';
-            });
-        }
 
-        // Sort functionality
-        document.getElementById('sortDropdown').addEventListener('click', function(e) {
-            if (e.target.tagName === 'A') {
-                const sortType = e.target.getAttribute('data-sort');
-                sortTable(sortType);
-            }
-        });
-
-        function sortTable(sortType) {
-            const activeTable = document.querySelector('.tab-content.active').querySelector('table');
-            const rows = Array.from(activeTable.querySelectorAll('tbody tr'));
-            const tbody = activeTable.querySelector('tbody');
-            
-            rows.sort((a, b) => {
-                switch (sortType) {
-                    case 'name-asc':
-                        return a.cells[1].textContent.localeCompare(b.cells[1].textContent);
-                    case 'name-desc':
-                        return b.cells[1].textContent.localeCompare(a.cells[1].textContent);
-                    case 'date-asc':
-                        const dateA = new Date(a.cells[4].textContent + ' ' + a.cells[5].textContent);
-                        const dateB = new Date(b.cells[4].textContent + ' ' + b.cells[5].textContent);
-                        return dateA - dateB;
-                    case 'date-desc':
-                        const dateADesc = new Date(a.cells[4].textContent + ' ' + a.cells[5].textContent);
-                        const dateBDesc = new Date(b.cells[4].textContent + ' ' + b.cells[5].textContent);
-                        return dateBDesc - dateADesc;
-                    default:
-                        return 0;
+                if (matchesSearch && matchesLab && matchesStatus) {
+                    visibleRows.push(row);
+                    totalVisible++;
                 }
             });
-            
-            // Clear and re-append sorted rows
-            tbody.innerHTML = '';
-            rows.forEach(row => tbody.appendChild(row));
+
+            // Show all rows if "All" is selected
+            if (entriesPerPage === "all") {
+                rows.forEach(row => row.style.display = 'none');
+                visibleRows.forEach(row => row.style.display = '');
+                updatePaginationControls(totalVisible, true, activeTab);
+                return;
+            }
+
+            // Calculate total pages for paginated results
+            const entriesNum = parseInt(entriesPerPage);
+            totalPages = Math.ceil(totalVisible / entriesNum);
+            if (currentPage > totalPages && totalPages > 0) {
+                currentPage = totalPages;
+            } else if (totalPages === 0) {
+                currentPage = 1;
+            }
+
+            // Second pass: show/hide rows based on pagination
+            const startIndex = (currentPage - 1) * entriesNum;
+            const endIndex = startIndex + entriesNum;
+
+            rows.forEach(row => row.style.display = 'none');
+            visibleRows.slice(startIndex, endIndex).forEach(row => row.style.display = '');
+
+            // Update pagination controls
+            updatePaginationControls(totalVisible, false, activeTab);
         }
 
-        // Toggle dropdowns
-        document.getElementById('filterButton').addEventListener('click', function(e) {
-            e.stopPropagation();
-            document.getElementById('filterDropdown').classList.toggle('hidden');
+        function updatePaginationControls(totalVisible, showAll, activeTab) {
+            const entriesPerPage = document.getElementById('entries').value;
+            const tabName = activeTab.replace('Content', '');
+            const paginationInfo = document.getElementById(tabName + 'PaginationInfo');
+            const paginationControls = document.getElementById(tabName + 'PaginationControls');
+            
+            if (entriesPerPage === "all" || showAll) {
+                // Show all entries - hide pagination controls
+                paginationInfo.textContent = `Showing all ${totalVisible} entries`;
+                paginationControls.innerHTML = '';
+                return;
+            }
+            
+            // Show paginated results
+            const entriesNum = parseInt(entriesPerPage);
+            const startEntry = totalVisible === 0 ? 0 : (currentPage - 1) * entriesNum + 1;
+            const endEntry = Math.min(currentPage * entriesNum, totalVisible);
+            
+            // Update pagination info
+            paginationInfo.textContent = `Showing ${startEntry} to ${endEntry} of ${totalVisible} entries`;
+            
+            // Update pagination controls
+            paginationControls.innerHTML = '';
+            
+            // Previous button
+            const prevButton = document.createElement('button');
+            prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+            prevButton.className = `px-3 py-1 rounded-md border ${currentPage === 1 ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+            prevButton.disabled = currentPage === 1;
+            prevButton.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    filterTable();
+                }
+            });
+            paginationControls.appendChild(prevButton);
+            
+            // Page numbers
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+            
+            if (startPage > 1) {
+                const firstPageButton = document.createElement('button');
+                firstPageButton.textContent = '1';
+                firstPageButton.className = 'px-3 py-1 rounded-md border bg-white text-[#002044] hover:bg-gray-100';
+                firstPageButton.addEventListener('click', () => {
+                    currentPage = 1;
+                    filterTable();
+                });
+                paginationControls.appendChild(firstPageButton);
+                
+                if (startPage > 2) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.className = 'px-2 py-1';
+                    paginationControls.appendChild(ellipsis);
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.textContent = i;
+                pageButton.className = `px-3 py-1 rounded-md border ${i === currentPage ? 'bg-[#002044] text-white' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+                pageButton.addEventListener('click', () => {
+                    currentPage = i;
+                    filterTable();
+                });
+                paginationControls.appendChild(pageButton);
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.className = 'px-2 py-1';
+                    paginationControls.appendChild(ellipsis);
+                }
+                
+                const lastPageButton = document.createElement('button');
+                lastPageButton.textContent = totalPages;
+                lastPageButton.className = 'px-3 py-1 rounded-md border bg-white text-[#002044] hover:bg-gray-100';
+                lastPageButton.addEventListener('click', () => {
+                    currentPage = totalPages;
+                    filterTable();
+                });
+                paginationControls.appendChild(lastPageButton);
+            }
+            
+            // Next button
+            const nextButton = document.createElement('button');
+            nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
+            nextButton.className = `px-3 py-1 rounded-md border ${currentPage === totalPages ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
+            nextButton.disabled = currentPage === totalPages;
+            nextButton.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    filterTable();
+                }
+            });
+            paginationControls.appendChild(nextButton);
+        }
+
+        // Event listeners for all filters
+        document.getElementById('searchInput').addEventListener('input', filterTable);
+        document.getElementById('labFilter').addEventListener('change', filterTable);
+        document.getElementById('statusFilter').addEventListener('change', filterTable);
+        document.getElementById('entries').addEventListener('change', function() {
+            currentPage = 1; // Reset to first page when changing entries per page
+            filterTable();
         });
 
-        document.getElementById('sortButton').addEventListener('click', function(e) {
-            e.stopPropagation();
-            document.getElementById('sortDropdown').classList.toggle('hidden');
-        });
-
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', function() {
-            document.getElementById('filterDropdown').classList.add('hidden');
-            document.getElementById('sortDropdown').classList.add('hidden');
-        });
+        // Initialize table with default filters and pagination
+        filterTable();
 
         // Approve/Decline reservation functions
         function approveReservation(reservationId) {

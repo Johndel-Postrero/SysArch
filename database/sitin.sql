@@ -535,3 +535,14 @@ ALTER TABLE `sitin`
   ADD CONSTRAINT `fk_sitin_lab` FOREIGN KEY (`lab_number`) REFERENCES `lab_pcs` (`lab_number`) ON DELETE CASCADE,
   ADD CONSTRAINT `sitin_ibfk_1` FOREIGN KEY (`idno`) REFERENCES `users` (`idno`) ON DELETE CASCADE;
 COMMIT;
+
+-- Create comments table
+CREATE TABLE IF NOT EXISTS comments (
+    comment_id INT PRIMARY KEY AUTO_INCREMENT,
+    announcement_id INT NOT NULL,
+    user_id INT NOT NULL,
+    comment_text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (announcement_id) REFERENCES announcements(announcement_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+); 
