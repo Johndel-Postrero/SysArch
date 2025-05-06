@@ -50,6 +50,11 @@ $totalSitInQuery = "SELECT COUNT(*) as total FROM sitin WHERE time_in IS NOT NUL
 $totalSitInResult = $conn->query($totalSitInQuery);
 $totalSitIn = $totalSitInResult->fetch_assoc()['total'];
 
+// Fetch approved reservations
+$approvedReservationsQuery = "SELECT COUNT(*) as total FROM reservations WHERE status = 'approved'";
+$approvedReservationsResult = $conn->query($approvedReservationsQuery);
+$approvedReservations = $approvedReservationsResult->fetch_assoc()['total'];
+
 $conn->close();
 ?>
 
@@ -168,7 +173,7 @@ $conn->close();
                     <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between">
                         <div>
                             <p class="text-gray-500 text-sm">Reservations</p>
-                            <p class="text-2xl font-bold">0</p>
+                            <p class="text-2xl font-bold"><?php echo $approvedReservations; ?></p>
                         </div>
                         <i class="fas fa-calendar-check text-3xl text-purple-800"></i>
                     </div>
