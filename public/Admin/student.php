@@ -30,15 +30,8 @@ if ($result->num_rows > 0) {
         $sitinData[] = $row;
     }
 }
-// Fetch available courses from the database
-$courses = [];
-$course_sql = "SELECT course_name FROM courses"; // Adjust table/column names if necessary
-$course_result = $conn->query($course_sql);
-if ($course_result && $course_result->num_rows > 0) {
-    while ($row = $course_result->fetch_assoc()) {
-        $courses[] = $row;
-    }
-}
+// Define available courses
+$courses = ['BSIT', 'BSCS', 'HM', 'CRIM', 'CBA'];
 $conn->close();
 ?>
 <!DOCTYPE html>
@@ -230,11 +223,9 @@ $conn->close();
                                         <label class="block text-sm font-medium text-gray-700">Course</label>
                                         <select id="courseFilter" class="w-full border border-gray-300 rounded-md p-2 mt-1">
                                             <option value="">All Courses</option>
-                                            <option value="BSIT">BSIT</option>
-                                            <option value="BSCS">BSCS</option>
-                                            <option value="HM">HM</option>
-                                            <option value="CRIM">CRIM</option>
-                                            <option value="CBA">CBA</option>
+                                            <?php foreach ($courses as $course): ?>
+                                                <option value="<?php echo htmlspecialchars($course); ?>"><?php echo htmlspecialchars($course); ?></option>
+                                            <?php endforeach; ?>
                                         </select>
                                     </div>
                                     <div class="p-2">
@@ -379,9 +370,7 @@ $conn->close();
                     <select id="addCourse" name="course" class="form-control" required>
                         <option value="">Select Course</option>
                         <?php foreach ($courses as $course): ?>
-                            <option value="<?php echo htmlspecialchars($course['course_name']); ?>">
-                                <?php echo htmlspecialchars($course['course_name']); ?>
-                            </option>
+                            <option value="<?php echo htmlspecialchars($course); ?>"><?php echo htmlspecialchars($course); ?></option>
                         <?php endforeach; ?>
                     </select>
                     <i class="zmdi zmdi-caret-down" style="font-size: 17px; bottom: 30px;"></i>
@@ -442,9 +431,7 @@ $conn->close();
                     <select id="editCourse" name="course" class="form-control" required>
                         <option value="">Select Course</option>
                         <?php foreach ($courses as $course): ?>
-                            <option value="<?php echo htmlspecialchars($course['course_name']); ?>">
-                                <?php echo htmlspecialchars($course['course_name']); ?>
-                            </option>
+                            <option value="<?php echo htmlspecialchars($course); ?>"><?php echo htmlspecialchars($course); ?></option>
                         <?php endforeach; ?>
                     </select>
                     <i class="zmdi zmdi-caret-down" style="font-size: 17px; bottom: 30px;"></i>

@@ -82,10 +82,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['logout_idno'])) {
 }
 
 // Fetch data from the sitin table for students who are currently sitting in
-$sql = "SELECT sitin.id, sitin.idno, users.lastname, users.firstname, users.middlename, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, users.session 
+$sql = "SELECT sitin.sitin_id, sitin.idno, users.lastname, users.firstname, users.middlename, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, users.session 
         FROM sitin 
         JOIN users ON sitin.idno = users.idno
-        WHERE sitin.time_out IS NULL"; // Only fetch records where time_out is NULL
+        WHERE sitin.time_out IS NULL";
 $result = $conn->query($sql);
 
 $sitinData = [];
@@ -223,7 +223,7 @@ $conn->close();
                                 <?php if (!empty($sitinData)): ?>
                                     <?php foreach ($sitinData as $index => $sitin): ?>
                                         <tr class="<?php echo ($index % 2 === 0) ? 'bg-gray-100' : 'bg-gray-200'; ?>">
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['id']); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['sitin_id']); ?></td>
                                             <td class="py-4 px-4 font-semibold text-center"><?php echo htmlspecialchars($sitin['idno']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['firstname'] . ' ' . $sitin['middlename'] . ' ' . $sitin['lastname']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['purpose']); ?></td>

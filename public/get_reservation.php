@@ -9,7 +9,7 @@ if (!isset($_SESSION['login_user'])) {
 }
 
 // Get reservation ID from query string
-$reservationId = $_GET['id'] ?? null;
+$reservationId = $_GET['reservation_id'] ?? null;
 if (!$reservationId) {
     header("HTTP/1.1 400 Bad Request");
     die(json_encode(['error' => 'Reservation ID is required']));
@@ -29,7 +29,7 @@ if (!$user) {
 }
 
 // Fetch reservation details
-$reservationQuery = $conn->prepare("SELECT id, lab_number, reservation_date, time_in, purpose FROM reservations WHERE id = ? AND idno = ?");
+$reservationQuery = $conn->prepare("SELECT reservation_id, lab_number, reservation_date, time_in, purpose FROM reservations WHERE reservation_id = ? AND idno = ?");
 $reservationQuery->bind_param("ii", $reservationId, $user['idno']);
 $reservationQuery->execute();
 $reservationResult = $reservationQuery->get_result();

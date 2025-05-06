@@ -9,13 +9,13 @@ if (!isset($_SESSION['login_user'])) {
     exit();
 }
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['id']) && isset($_POST['status'])) {
-    $reservationId = (int)$_POST['id'];
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reservation_id']) && isset($_POST['status'])) {
+    $reservationId = (int)$_POST['reservation_id'];
     $status = $_POST['status'];
     
     try {
         // Get reservation details
-        $stmt = $conn->prepare("SELECT r.*, u.firstname, u.lastname, u.idno FROM reservations r JOIN users u ON r.idno = u.idno WHERE r.id = ?");
+        $stmt = $conn->prepare("SELECT r.*, u.firstname, u.lastname, u.idno FROM reservations r JOIN users u ON r.idno = u.idno WHERE r.reservation_id = ?");
         if (!$stmt) {
             throw new Exception("Prepare failed: " . $conn->error);
         }
@@ -32,7 +32,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['id']) && isset($_POST[
         }
         
         // Update reservation status
-        $updateStmt = $conn->prepare("UPDATE reservations SET status = ? WHERE id = ?");
+        $updateStmt = $conn->prepare("UPDATE reservations SET status = ? WHERE reservation_id = ?");
         if (!$updateStmt) {
             throw new Exception("Prepare failed: " . $conn->error);
         }
@@ -48,7 +48,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['id']) && isset($_POST[
                          " on " . $reservation['reservation_date'] . " has been " . $status;
         
         // Get user ID from idno
-        $userStmt = $conn->prepare("SELECT id FROM users WHERE idno = ?");
+        $userStmt = $conn->prepare("SELECT user_id FROM users WHERE idno = ?");
         if (!$userStmt) {
             throw new Exception("Prepare failed: " . $conn->error);
         }
@@ -61,7 +61,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['id']) && isset($_POST[
         $userStmt->close();
         
         if ($user) {
-            saveStudentNotification($studentMessage, $user['id'], $conn);
+            saveStudentNotification($studentMessage, $user['user_id'], $conn);
         }
         
         echo json_encode(['success' => true, 'message' => 'Reservation updated successfully']);

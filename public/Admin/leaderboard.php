@@ -189,7 +189,7 @@ function getInitials($firstname, $lastname) {
             justify-content: center;
             align-items: flex-end;
             height: 300px;
-            gap: 20px;
+            gap: 30px;
         }
         
         .podium-step {
@@ -197,7 +197,7 @@ function getInitials($firstname, $lastname) {
             flex-direction: column;
             align-items: center;
             position: relative;
-            width: 180px;
+            width: 200px;
         }
         
         .podium-1, .podium-2, .podium-3 {
@@ -227,13 +227,13 @@ function getInitials($firstname, $lastname) {
         .podium-names {
             display: flex;
             justify-content: center;
-            gap: 20px;
+            gap: 30px;
             width: 100%;
             margin-top: 20px;
         }
         
         .podium-name-container {
-            width: 180px;
+            width: 200px;
             text-align: center;
         }
         

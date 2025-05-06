@@ -21,7 +21,7 @@ if (isset($_GET['query']) && !empty($_GET['query'])) {
 
     while ($row = $result->fetch_assoc()) {
         // Check if the user already has an active sit-in for today
-        $sitInCheck = $conn->prepare("SELECT id FROM sitin WHERE idno = ? AND sitin_date = CURDATE() AND time_out IS NULL LIMIT 1");
+        $sitInCheck = $conn->prepare("SELECT sitin_id FROM sitin WHERE idno = ? AND sitin_date = CURDATE() AND time_out IS NULL LIMIT 1");
         $sitInCheck->bind_param("i", $row['idno']);
         $sitInCheck->execute();
         $sitInCheck->store_result();
@@ -70,7 +70,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $sitin_date = date("Y-m-d");
 
         // Check if user already has an active sit-in
-        $checkQuery = $conn->prepare("SELECT id FROM sitin WHERE idno = ? AND sitin_date = CURDATE() AND time_out IS NULL LIMIT 1");
+        $checkQuery = $conn->prepare("SELECT sitin_id FROM sitin WHERE idno = ? AND sitin_date = CURDATE() AND time_out IS NULL LIMIT 1");
         $checkQuery->bind_param("i", $idno);
         $checkQuery->execute();
         $checkQuery->store_result();
@@ -173,6 +173,7 @@ $conn->close();
             justify-content: center;
             align-items: center;
             transition: all 0.3s ease-in-out;
+            z-index: 100;
         }
         /* Modal Box */
         .modal {

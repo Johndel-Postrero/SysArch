@@ -6,9 +6,12 @@ if (!isset($_SESSION['login_user'])) {
     die("Unauthorized access");
 }
 
-if (isset($_GET['id'])) {
-    $postId = intval($_GET['id']);
-    $query = $conn->prepare("SELECT id, title, description, attachment FROM announcements WHERE id = ?");
+if (isset($_GET['announcement_id'])) {  // Changed from 'id' to 'announcement_id'
+    $postId = intval($_GET['announcement_id']);
+    $query = $conn->prepare("SELECT announcement_id, title, description, attachment FROM announcements WHERE announcement_id = ?");
+    if ($query === false) {
+        die("Prepare failed: " . $conn->error);
+    }
     $query->bind_param("i", $postId);
     $query->execute();
     $result = $query->get_result();

@@ -22,9 +22,9 @@ if (!isset($_SESSION['login_user'])) {
 require __DIR__ . '/../../config/db.php';
 
 // Fetch data from the sitin table (including records where time_out is NULL)
-$sql = "SELECT sitin.id, sitin.idno, users.lastname, users.firstname, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, sitin.created_at
+$sql = "SELECT sitin.sitin_id, sitin.idno, users.lastname, users.firstname, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, sitin.created_at
         FROM sitin 
-        JOIN users ON sitin.idno = users.idno"; // Removed the WHERE clause
+        JOIN users ON sitin.idno = users.idno";
 
 $result = $conn->query($sql);
 

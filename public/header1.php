@@ -43,12 +43,12 @@ function getNotifications($conn, $limit = 5) {
     $role = $_SESSION['role'] ?? 'student';
     
     if ($role === 'student') {
-        $query = "SELECT id, message, is_read, created_at 
+        $query = "SELECT notification_id, message, is_read, created_at 
                  FROM notifications 
                  WHERE (user_id = ? AND notification_type = 'student')
                  ORDER BY created_at DESC LIMIT ?";
     } else {
-        $query = "SELECT id, message, is_read, created_at 
+        $query = "SELECT notification_id, message, is_read, created_at 
                  FROM notifications 
                  WHERE notification_type = 'admin'
                  ORDER BY created_at DESC LIMIT ?";
@@ -123,7 +123,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
     if (isset($_POST['mark_read']) && isset($_POST['notification_id'])) {
         $notificationId = intval($_POST['notification_id']);
         
-        $markReadQuery = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");
+        $markReadQuery = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE notification_id = ?");
         if ($markReadQuery) {
             $markReadQuery->bind_param("i", $notificationId);
             
@@ -236,7 +236,7 @@ $conn->close();
                 <div class="max-h-80 overflow-y-auto">
                     <?php if (count($notifications) > 0): ?>
                         <?php foreach ($notifications as $notification): ?>  
-                            <div class="notification-item <?php echo $notification['is_read'] ? '' : 'unread'; ?> p-4 border-b" data-id="<?php echo $notification['id']; ?>">
+                            <div class="notification-item <?php echo $notification['is_read'] ? '' : 'unread'; ?> p-4 border-b" data-id="<?php echo $notification['notification_id']; ?>">
                                 <div class="flex justify-between">
                                     <p class="text-sm <?php echo $notification['is_read'] ? 'text-gray-600' : 'text-gray-900 font-medium'; ?>">
                                         <?php echo htmlspecialchars($notification['message']); ?>

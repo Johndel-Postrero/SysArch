@@ -12,11 +12,11 @@ header('Content-Type: application/json');
 $response = ['success' => false, 'message' => ''];
 
 try {
-    if ($_SERVER["REQUEST_METHOD"] != "POST" || !isset($_POST['id'])) {
+    if ($_SERVER["REQUEST_METHOD"] != "POST" || !isset($_POST['reservation_id'])) {
         throw new Exception("Invalid request method or missing parameters");
     }
 
-    $reservationId = (int)$_POST['id'];
+    $reservationId = (int)$_POST['reservation_id'];
     
     if ($reservationId <= 0) {
         throw new Exception("Invalid reservation ID");
@@ -26,7 +26,7 @@ try {
     $conn->begin_transaction();
     
     // 1. Get reservation details
-    $reservationQuery = $conn->prepare("SELECT * FROM reservations WHERE id = ?");
+    $reservationQuery = $conn->prepare("SELECT * FROM reservations WHERE reservation_id = ?");
     if (!$reservationQuery) {
         throw new Exception("Prepare failed: " . $conn->error);
     }
@@ -53,7 +53,7 @@ try {
     }
     
     // 3. Check for existing active sit-in
-    $checkSitin = $conn->prepare("SELECT id FROM sitin WHERE idno = ? AND lab_number = ? AND sitin_date = ? AND time_out IS NULL");
+    $checkSitin = $conn->prepare("SELECT sitin_id FROM sitin WHERE idno = ? AND lab_number = ? AND sitin_date = ? AND time_out IS NULL");
     if (!$checkSitin) {
         throw new Exception("Prepare failed: " . $conn->error);
     }
@@ -109,7 +109,7 @@ try {
     $insertSitin->close();
     
     // 6. Update reservation status to 'sit-inned'
-    $updateReservation = $conn->prepare("UPDATE reservations SET time_in_status = 'sit-inned' WHERE id = ?");
+    $updateReservation = $conn->prepare("UPDATE reservations SET time_in_status = 'sit-inned' WHERE reservation_id = ?");
     if (!$updateReservation) {
         throw new Exception("Prepare failed: " . $conn->error);
     }
@@ -128,13 +128,13 @@ try {
                      " on " . $reservation['reservation_date'] . " at " . $reservation['time_in'] . 
                      " has been marked as sit-inned. Please proceed to the lab.";
 
-    $userStmt = $conn->prepare("SELECT id FROM users WHERE idno = ?");
+    $userStmt = $conn->prepare("SELECT user_id FROM users WHERE idno = ?");
     if ($userStmt) {
         $userStmt->bind_param("i", $reservation['idno']);
         $userStmt->execute();
         $userResult = $userStmt->get_result();
         if ($user = $userResult->fetch_assoc()) {
-            saveStudentNotification($studentMessage, $user['id'], $conn);
+            saveStudentNotification($studentMessage, $user['user_id'], $conn);
         }
         $userStmt->close();
     }

@@ -47,11 +47,7 @@ $pageTitle = $titles[$page] ?? "Dashboard";
 function getAdminNotifications($conn, $limit = 5) {
     $notifications = [];
     
-    $query = "SELECT id, message, is_read, created_at 
-              FROM notifications 
-              WHERE notification_type = 'admin'
-              ORDER BY created_at DESC 
-              LIMIT ?";
+    $query = "SELECT notification_id, message, is_read, created_at FROM notifications WHERE notification_type = 'admin' ORDER BY created_at DESC LIMIT ?";
     $stmt = $conn->prepare($query);
     
     if ($stmt) {
@@ -178,7 +174,7 @@ $conn->close();
                 <div class="max-h-80 overflow-y-auto">
                     <?php if (count($notifications) > 0): ?>
                         <?php foreach ($notifications as $notification): ?>
-                            <div class="notification-item <?php echo $notification['is_read'] ? '' : 'unread'; ?> p-4 border-b" data-id="<?php echo $notification['id']; ?>">
+                            <div class="notification-item <?php echo $notification['is_read'] ? '' : 'unread'; ?> p-4 border-b" data-id="<?php echo $notification['notification_id']; ?>">
                                 <div class="flex justify-between">
                                     <p class="text-sm <?php echo $notification['is_read'] ? 'text-gray-600' : 'text-gray-900 font-medium'; ?>"><?php echo htmlspecialchars($notification['message']); ?></p>
                                     

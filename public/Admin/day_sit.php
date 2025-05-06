@@ -17,11 +17,11 @@ require __DIR__ . '/../../config/db.php';
 
 // Fetch data from the sitin table
 // Update the SQL query to join with rewards table
-$sql = "SELECT sitin.id, sitin.idno, users.lastname, users.firstname, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, sitin.created_at,
-        rewards.id AS reward_id
+$sql = "SELECT sitin.sitin_id, sitin.idno, users.lastname, users.firstname, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, sitin.created_at,
+        rewards.reward_id
         FROM sitin 
         JOIN users ON sitin.idno = users.idno
-        LEFT JOIN rewards ON sitin.id = rewards.sitin_id
+        LEFT JOIN rewards ON sitin.sitin_id = rewards.sitin_id
         WHERE sitin.time_out IS NOT NULL AND DATE(sitin.created_at) = CURDATE()
         ORDER BY sitin.created_at DESC";
 
@@ -204,7 +204,7 @@ $conn->close();
                                 <?php if (!empty($sitinData)): ?>
                                     <?php foreach ($sitinData as $index => $sitin): ?>
                                         <tr class="<?php echo ($index % 2 === 0) ? 'bg-gray-100' : 'bg-gray-200'; ?>">
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['id']); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['sitin_id']); ?></td>
                                             <td class="py-4 px-4 font-semibold text-center"><?php echo htmlspecialchars($sitin['idno']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['lastname'] . ', ' . $sitin['firstname']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['purpose']); ?></td>
@@ -214,7 +214,7 @@ $conn->close();
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('Y-m-d', strtotime($sitin['created_at']))); ?></td>
                                             <td class="py-4 px-4 text-center">
                                                 <?php if (empty($sitin['reward_id'])): ?>
-                                                    <button onclick="giveReward(<?php echo $sitin['id']; ?>, '<?php echo $sitin['idno']; ?>', '<?php echo $sitin['lastname']; ?>', '<?php echo $sitin['firstname']; ?>')" 
+                                                    <button onclick="giveReward(<?php echo $sitin['sitin_id']; ?>, '<?php echo $sitin['idno']; ?>', '<?php echo $sitin['lastname']; ?>', '<?php echo $sitin['firstname']; ?>')" 
                                                             class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded">
                                                         Reward
                                                     </button>

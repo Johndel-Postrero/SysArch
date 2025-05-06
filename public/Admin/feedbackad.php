@@ -14,10 +14,10 @@ if (!isset($_SESSION['login_user'])) {
 
 require __DIR__ . '/../../config/db.php';
 
-$sql = "SELECT feedback.id, users.idno, users.lastname, users.firstname, users.middlename, users.course, users.level, sitin.time_in, sitin.time_out, sitin.lab_number, feedback.message, feedback.rating, feedback.created_at 
+$sql = "SELECT feedback.feedback_id, users.idno, users.lastname, users.firstname, users.middlename, users.course, users.level, sitin.time_in, sitin.time_out, sitin.lab_number, feedback.message, feedback.rating, feedback.created_at 
         FROM feedback 
-        JOIN users ON feedback.user_id = users.id
-        JOIN sitin ON feedback.sitin_id = sitin.id
+        JOIN users ON feedback.user_id = users.user_id
+        JOIN sitin ON feedback.sitin_id = sitin.sitin_id
         ORDER BY feedback.created_at DESC";
 $result = $conn->query($sql);
 
@@ -225,7 +225,7 @@ body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; 
                             <tbody>
                             <?php if (!empty($feedbackData)): ?>
                                 <?php foreach ($feedbackData as $index => $feedback): ?>
-                                    <tr class="<?php echo ($feedback['contains_foul_word'] ? 'text-red-500' : ($index % 2 === 0 ? 'bg-gray-100' : 'bg-gray-200')); ?>" data-id="<?php echo $feedback['id']; ?>">
+                                    <tr class="<?php echo ($feedback['contains_foul_word'] ? 'text-red-500' : ($index % 2 === 0 ? 'bg-gray-100' : 'bg-gray-200')); ?>" data-id="<?php echo $feedback['feedback_id']; ?>">
                                             <td class="py-4 px-4 font-semibold text-center"><?php echo htmlspecialchars($feedback['idno']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($feedback['lastname']. ', ' . $feedback['firstname']. ' ' . $feedback['middlename'] ); ?></td>
                                             <td class="py-4 px-4 text-center hidden-column"><?php echo htmlspecialchars($feedback['course']. ' ' . $feedback['level']); ?></td>

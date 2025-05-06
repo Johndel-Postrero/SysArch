@@ -23,7 +23,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['middlename'] = $user['middlename'];
             $_SESSION['lastname'] = $user['lastname'];
             $_SESSION['role'] = $user['role'];
-            $_SESSION['user_id'] = $user['id']; // Assuming 'id' is the column name in your database
+            $_SESSION['user_id'] = $user['user_id']; // Assuming 'id' is the column name in your database
             $_SESSION['login_success'] = true; // Store success flag in session
 
             // Redirect back to login.php so JavaScript can handle the success message

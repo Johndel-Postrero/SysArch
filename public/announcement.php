@@ -19,7 +19,7 @@ require __DIR__ . '/../config/db.php';
 $query = "
     SELECT a.*, u.firstname, u.middlename, u.lastname, u.profile_picture 
     FROM announcements a
-    JOIN users u ON a.admin_id = u.id
+    JOIN users u ON a.admin_id = u.user_id
     WHERE u.role = 'admin'
     ORDER BY a.created_at DESC
 ";

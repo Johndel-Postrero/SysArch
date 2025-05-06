@@ -23,7 +23,6 @@ $titles = [
     "history" => "History",
     "rules" => "Rules & Regulations",
     "lab" => "Lab Schedule",
-
 ];
 
 // Set the page title dynamically (default to 'Dashboard' if not found)
@@ -38,7 +37,7 @@ $initials = "G";
 function updateUserSession($conn, &$firstname, &$middlename, &$lastname, &$profile_picture, &$role, &$initials) {
     if (isset($_SESSION['login_user'])) {
         $username = $_SESSION['login_user'];
-        $query = $conn->prepare("SELECT id, firstname, middlename, lastname, profile_picture, role FROM users WHERE username = ?");
+        $query = $conn->prepare("SELECT user_id, firstname, middlename, lastname, profile_picture, role FROM users WHERE username = ?");
         if (!$query) {
             die("Prepare failed: " . $conn->error);
         }
@@ -51,7 +50,7 @@ function updateUserSession($conn, &$firstname, &$middlename, &$lastname, &$profi
         if ($result->num_rows > 0) {
             $user = $result->fetch_assoc();
             // Update session variables
-            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['firstname'] = $user['firstname'];
             $_SESSION['middlename'] = $user['middlename'];
             $_SESSION['lastname'] = $user['lastname'];
@@ -88,12 +87,12 @@ function getNotifications($conn, $limit = 5) {
     $role = $_SESSION['role'] ?? 'student';
     
     if ($role === 'student') {
-        $query = "SELECT id, message, is_read, created_at 
+        $query = "SELECT notification_id, message, is_read, created_at 
                  FROM notifications 
                  WHERE (user_id = ? AND notification_type = 'student')
                  ORDER BY created_at DESC LIMIT ?";
     } else {
-        $query = "SELECT id, message, is_read, created_at 
+        $query = "SELECT notification_id, message, is_read, created_at 
                  FROM notifications 
                  WHERE notification_type = 'admin'
                  ORDER BY created_at DESC LIMIT ?";
@@ -168,7 +167,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
     if (isset($_POST['mark_read']) && isset($_POST['notification_id'])) {
         $notificationId = intval($_POST['notification_id']);
         
-        $markReadQuery = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");
+        $markReadQuery = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE notification_id = ?");
         if ($markReadQuery) {
             $markReadQuery->bind_param("i", $notificationId);
             
@@ -281,7 +280,7 @@ $conn->close();
                 <div class="max-h-80 overflow-y-auto">
                     <?php if (count($notifications) > 0): ?>
                         <?php foreach ($notifications as $notification): ?>  
-                            <div class="notification-item <?php echo $notification['is_read'] ? '' : 'unread'; ?> p-4 border-b" data-id="<?php echo $notification['id']; ?>">
+                            <div class="notification-item <?php echo $notification['is_read'] ? '' : 'unread'; ?> p-4 border-b" data-id="<?php echo $notification['notification_id']; ?>">
                                 <div class="flex justify-between">
                                     <p class="text-sm <?php echo $notification['is_read'] ? 'text-gray-600' : 'text-gray-900 font-medium'; ?>">
                                         <?php echo htmlspecialchars($notification['message']); ?>
@@ -437,6 +436,75 @@ $conn->close();
             notificationDropdown.classList.add('hidden');
         }
     });
+</script>
+<script>
+// Function to check for upcoming reservations
+function checkUpcomingReservations() {
+    fetch('check_reservation.php')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.notifications_sent > 0) {
+                // Show notification for each new reservation
+                data.reservations.forEach(reservation => {
+                    const message = `Your reservation for Lab ${reservation.lab_number}, PC ${reservation.pc_number} will start in 30 minutes at ${new Date('2000-01-01T' + reservation.time_in).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+                    
+                    // Show browser notification if available
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        new Notification('Reservation Reminder', {
+                            body: message,
+                            icon: 'notification-icon.png'
+                        });
+                    }
+                    
+                    // Show toast notification
+                    showNotification(message, 10000);
+                });
+                
+                // Refresh notifications
+                refreshNotifications();
+            }
+        })
+        .catch(error => {
+            // Silent error handling
+        });
+}
+
+// Function to refresh notifications
+function refreshNotifications() {
+    fetch('count_unread_notifications.php')
+        .then(response => response.json())
+        .then(data => {
+            if (data.unread_count > 0) {
+                const badge = document.querySelector('.notification-badge') || 
+                    document.createElement('div');
+                badge.className = 'notification-badge';
+                badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                const bell = document.getElementById('notificationBell');
+                if (!bell.querySelector('.notification-badge')) {
+                    bell.appendChild(badge);
+                }
+            } else {
+                const badge = document.querySelector('.notification-badge');
+                if (badge) badge.remove();
+            }
+        })
+        .catch(error => {
+            // Silent error handling
+        });
+}
+
+// Check every 10 seconds
+setInterval(checkUpcomingReservations, 10000);
+
+// Check immediately when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    checkUpcomingReservations();
+    
+    // Request notification permission
+    if ('Notification' in window) {
+        Notification.requestPermission();
+    }
+});
 </script>
 </body>
 </html>
