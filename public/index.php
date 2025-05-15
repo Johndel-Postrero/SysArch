@@ -16,21 +16,24 @@ if (!isset($_SESSION['login_user'])) {
 // Include the database connection
 require __DIR__ . '/../config/db.php';
 
-// Fetch session data for the logged-in user
+// Fetch user data including points
 $username = $_SESSION['login_user'];
-$query = $conn->prepare("SELECT session FROM users WHERE username = ?");
+$query = $conn->prepare("SELECT u.session, COALESCE(SUM(r.points), 0) AS total_points 
+                        FROM users u
+                        LEFT JOIN rewards r ON u.idno = r.idno
+                        WHERE u.username = ?");
 $query->bind_param("s", $username);
 $query->execute();
 $result = $query->get_result();
 $user = $result->fetch_assoc();
 
 $sessionsLeft = $user['session'];
-$sessionsUsed = 30 - $sessionsLeft; // Assuming the total sessions are 30
+$pointsAccumulated = $user['total_points']; // Get total points from rewards table
 
 $query->close();
 
 // Fetch the latest 10 announcements
-$announcementsQuery = $conn->prepare("SELECT title, created_at FROM announcements ORDER BY created_at DESC LIMIT 10");
+$announcementsQuery = $conn->prepare("SELECT title, created_at, attachment FROM announcements ORDER BY created_at DESC LIMIT 10");
 $announcementsQuery->execute();
 $announcementsResult = $announcementsQuery->get_result();
 $announcements = [];
@@ -57,7 +60,8 @@ while ($row = $announcementsResult->fetch_assoc()) {
 
     $announcements[] = [
         'title' => $row['title'],
-        'timeAgo' => $timeAgo
+        'timeAgo' => $timeAgo,
+        'attachment' => $row['attachment']
     ];
 }
 
@@ -66,22 +70,21 @@ $announcementsQuery->close();
 // Fetch lab usage data
 $labUsageQuery = $conn->prepare("
     SELECT 
-        sitin_date, 
-        SUM(TIME_TO_SEC(TIMEDIFF(time_out, time_in))) AS total_seconds 
+        DATE(created_at) as sitin_date,
+        COUNT(*) as sitin_count
     FROM sitin 
-    WHERE time_out IS NOT NULL 
-    GROUP BY sitin_date 
+    WHERE idno = ? AND time_out IS NOT NULL
+    GROUP BY DATE(created_at)
     ORDER BY sitin_date DESC 
     LIMIT 30
 ");
+$labUsageQuery->bind_param("i", $_SESSION['idno']);
 $labUsageQuery->execute();
 $labUsageResult = $labUsageQuery->get_result();
 $labUsageData = [];
 
 while ($row = $labUsageResult->fetch_assoc()) {
-    // Convert total seconds to hours
-    $totalHours = $row['total_seconds'] / 3600; // 3600 seconds = 1 hour
-    $labUsageData[$row['sitin_date']] = $totalHours;
+    $labUsageData[$row['sitin_date']] = $row['sitin_count'];
 }
 
 $labUsageQuery->close();
@@ -167,7 +170,7 @@ $conn->close();
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- Left Column: Sessions and Lab Usage -->
                     <div class="md:col-span-2 space-y-6">
-                        <div class="grid grid-cols-2 gap-6">
+                     <div class="grid grid-cols-2 gap-6">
                             <!-- Sessions Left -->
                             <div class="bg-[#002044] text-white p-4 rounded-lg flex items-center justify-between h-24">
                                 <div>
@@ -176,13 +179,13 @@ $conn->close();
                                 </div>
                                 <i class="fas fa-calendar-alt text-3xl"></i>
                             </div>
-                            <!-- Sessions Used -->
+                            <!-- Points Accumulated -->
                             <div class="bg-white p-4 rounded-lg flex items-center justify-between shadow h-24">
                                 <div>
-                                    <p class="text-3xl font-semibold"><?php echo $sessionsUsed; ?></p>
-                                    <p>Sessions Used</p>
+                                    <p class="text-3xl font-semibold"><?php echo $pointsAccumulated; ?></p>
+                                    <p>Points Accumulated</p>
                                 </div>
-                                <i class="fas fa-calendar-alt text-3xl text-gray-500"></i>
+                                <i class="fas fa-award text-3xl text-yellow-500"></i> <!-- Changed icon to star -->
                             </div>
                         </div>
                         <!-- Lab Usage -->
@@ -203,22 +206,65 @@ $conn->close();
                     </div>
                     <!-- Right Column: Announcements -->
                     <div class="bg-white p-6 rounded-lg shadow">
-                        <h3 class="text-lg font-semibold mb-4">Announcements</h3>
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold">Announcements</h3>
+                            <a href="announcement.php" class="text-blue-600 hover:text-blue-800 text-sm">View All</a>
+                        </div>
                         <div class="space-y-4">
                             <?php if (!empty($announcements)): ?>
                                 <?php foreach ($announcements as $index => $announcement): ?>
                                     <?php if ($index === 0): ?>
                                         <!-- First announcement with special styling -->
-                                        <div class="bg-[#002044] text-white p-4 rounded-lg flex justify-between items-center">
-                                            <p><?php echo htmlspecialchars($announcement['title']); ?></p>
-                                            <span class="text-sm"><?php echo $announcement['timeAgo']; ?></span>
-                                        </div>
+                                        <a href="announcement.php" class="block">
+                                            <div class="bg-[#002044] text-white p-4 rounded-lg">
+                                                <div class="flex justify-between items-center mb-2">
+                                                    <p class="font-semibold"><?php echo htmlspecialchars($announcement['title']); ?></p>
+                                                    <span class="text-sm"><?php echo $announcement['timeAgo']; ?></span>
+                                                </div>
+                                                <?php if (!empty($announcement['attachment'])): ?>
+                                                    <?php
+                                                    $file_path = "announce/" . htmlspecialchars($announcement['attachment']);
+                                                    $file_extension = strtolower(pathinfo($announcement['attachment'], PATHINFO_EXTENSION));
+                                                    $image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+                                                    ?>
+                                                    <div class="mt-2">
+                                                        <?php if (in_array($file_extension, $image_extensions)): ?>
+                                                            <img src="<?php echo $file_path; ?>" alt="Announcement Image" class="w-full h-32 object-cover rounded-lg">
+                                                        <?php else: ?>
+                                                            <span class="text-blue-300 hover:text-blue-100 underline">
+                                                                <?php echo htmlspecialchars($announcement['attachment']); ?>
+                                                            </span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        </a>
                                     <?php else: ?>
                                         <!-- Subsequent announcements with different styling -->
-                                        <div class="bg-white p-4 rounded-lg flex justify-between items-center shadow">
-                                            <p><?php echo htmlspecialchars($announcement['title']); ?></p>
-                                            <span class="text-sm text-gray-500"><?php echo $announcement['timeAgo']; ?></span>
-                                        </div>
+                                        <a href="announcement.php" class="block">
+                                            <div class="bg-white p-4 rounded-lg flex justify-between items-center shadow hover:bg-gray-50 transition-colors">
+                                                <div class="flex-1">
+                                                    <p class="font-semibold"><?php echo htmlspecialchars($announcement['title']); ?></p>
+                                                    <?php if (!empty($announcement['attachment'])): ?>
+                                                        <?php
+                                                        $file_path = "announce/" . htmlspecialchars($announcement['attachment']);
+                                                        $file_extension = strtolower(pathinfo($announcement['attachment'], PATHINFO_EXTENSION));
+                                                        $image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+                                                        ?>
+                                                        <div class="mt-2">
+                                                            <?php if (in_array($file_extension, $image_extensions)): ?>
+                                                                <img src="<?php echo $file_path; ?>" alt="Announcement Image" class="w-full h-24 object-cover rounded-lg">
+                                                            <?php else: ?>
+                                                                <span class="text-blue-500 hover:text-blue-700 underline">
+                                                                    <?php echo htmlspecialchars($announcement['attachment']); ?>
+                                                                </span>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <span class="text-sm text-gray-500 ml-4"><?php echo $announcement['timeAgo']; ?></span>
+                                            </div>
+                                        </a>
                                     <?php endif; ?>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -265,25 +311,49 @@ $conn->close();
 
     // Initialize the chart
     let labUsageChart = new Chart(ctx, {
-        type: 'bar',
+        type: 'line',
         data: {
             labels: prepareChartData(7).labels,
             datasets: [{
-                label: 'Hours Used',
+                label: 'Daily Sit-ins',
                 data: prepareChartData(7).data,
-                backgroundColor: 'rgba(59, 130, 246, 0.8)',
-                borderColor: 'rgba(59, 130, 246, 1)',
-                borderWidth: 1
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#3B82F6',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 4
             }]
         },
         options: {
             responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Your Daily Sit-in Activity'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            return `Sit-ins: ${context.raw}`;
+                        }
+                    }
+                }
+            },
             scales: {
                 y: {
                     beginAtZero: true,
+                    ticks: {
+                        stepSize: 1,
+                        precision: 0
+                    },
                     title: {
                         display: true,
-                        text: 'Hours'
+                        text: 'Number of Sit-ins'
                     }
                 },
                 x: {
@@ -292,6 +362,11 @@ $conn->close();
                         text: 'Date'
                     }
                 }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
             }
         }
     });

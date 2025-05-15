@@ -20,7 +20,47 @@ if (!isset($_SESSION['login_user'])) {
     <title>Laboratory</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Chart.js -->
     <style>
+        body {
+            font-family: "Poppins-Regular";
+            color: #333;
+            font-size: 16px;
+            margin: 0;
+        }
+        .sidebar {
+            width: 5rem; /* Default width */
+            transition: all 0.3s ease-in-out;
+        }
+        .sidebar:hover {
+            width: 16rem; /* Expanded width */
+        }
+        .sidebar:hover .sidebar-text {
+            display: inline;
+        }
+        .sidebar-text {
+            display: none;
+        }
+        .sidebar a {
+            display: flex;
+            align-items: center;
+            justify-content: center; /* Centers the icons */
+            padding: 1rem;
+        }
+        .sidebar:hover a {
+            justify-content: flex-start; /* Aligns text to the left on hover */
+        }
+        .sidebar i {
+            font-size: 1.5rem; /* Slightly larger icons */
+        }
+        .dropdown-content {
+            display: none;
+            margin-left: 2rem;
+        }
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
         
         .sidebar-hidden {
             transform: translateX(-100%);

@@ -15,7 +15,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $user = $result->fetch_assoc();
 
     if ($user) {
-        if (password_verify($password, $user['password'])) {
+        // Check if password is hashed or plain text
+        if (password_verify($password, $user['password']) || $password === $user['password']) {
             // Set session variables
             $_SESSION['login_user'] = $username;
             $_SESSION['idno'] = $user['idno']; 
@@ -23,8 +24,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['middlename'] = $user['middlename'];
             $_SESSION['lastname'] = $user['lastname'];
             $_SESSION['role'] = $user['role'];
-            $_SESSION['user_id'] = $user['id']; // Assuming 'id' is the column name in your database
-            $_SESSION['login_success'] = true; // Store success flag in session
+            $_SESSION['user_id'] = $user['user_id'];
+            $_SESSION['login_success'] = true;
 
             // Redirect back to login.php so JavaScript can handle the success message
             header("Location: login.php");
@@ -148,7 +149,7 @@ header("Expires: 0");
                     <i class="zmdi zmdi-lock" id="togglePassword" style="cursor: pointer;"></i>
                 </div>
                 <button type="submit" style="margin-top: 0;">Sign In</button>
-                <footer>Don’t have an account? <a href="register.php">Sign Up here</a></footer>
+                <footer>Don't have an account? <a href="register.php">Sign Up here</a></footer>
             </form>
         </div>
     </div>
@@ -165,7 +166,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         document.getElementById("closeDialog").addEventListener("click", function () {
             document.getElementById("successDialog").close();
-            window.location.href = "<?php echo ($_SESSION['role'] === 'admin') ? 'adminIndex.php' : 'index.php'; ?>";
+            window.location.href = "<?php echo ($_SESSION['role'] === 'admin') ? './Admin/adminIndex.php' : 'index.php'; ?>";
         });
     <?php endif; ?>
 });

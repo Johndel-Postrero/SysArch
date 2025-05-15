@@ -5,14 +5,8 @@ $error1 = '';
 $error2 = '';
 $error3 = '';
 
-$course_sql = "SELECT * FROM courses";
-$course_result = $conn->query($course_sql);
-$courses = [];
-if ($course_result->num_rows > 0) {
-    while ($row = $course_result->fetch_assoc()) {
-        $courses[] = $row;
-    }
-}
+// Define available courses based on the enum values
+$courses = ['BSIT', 'BSCS', 'HM', 'CRIM', 'CBA'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $idno = filter_input(INPUT_POST, 'idno');
@@ -58,39 +52,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($result3->num_rows > 0) {
                 $error2 = "Username already exists!";
             } else {
-                if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&£#])[A-Za-z\d@$!%*?&£#]{8,}$/', $password)){
-                    $error3 = "Password must be at least 8 characters, should include a mix of uppercase, lowercase, numbers, and special characters.";
+                // Hash the password
+                $password = password_hash($password, PASSWORD_DEFAULT);
+
+                // Create a default profile picture filename from initials
+                $initials = '';
+                if (!empty($firstname)) {
+                    $initials .= strtoupper(substr($firstname, 0, 1));
+                }
+                if (!empty($lastname)) {
+                    $initials .= strtoupper(substr($lastname, 0, 1));
+                }
+                $profile_picture = $initials . '.png';
+
+                // Insert the new user into the database
+                $sql = "INSERT INTO users (idno, lastname, firstname, middlename, course, level, email, username, password, role, profile_picture) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("issssisssss", $idno, $lastname, $firstname, $middlename, $course, $level, $email, $username, $password, $role, $profile_picture);
+        
+                if ($stmt->execute()) {
+                    header("Location: register.php?success=true");
+                    exit();
                 } else {
-                    // Hash the password
-                    $password = password_hash($password, PASSWORD_DEFAULT);
-
-                    // Create a default profile picture filename from initials:
-                    // Take the first letter of firstname and the first letter of lastname.
-                    $initials = '';
-                    if (!empty($firstname)) {
-                        $initials .= strtoupper(substr($firstname, 0, 1));
-                    }
-                    if (!empty($lastname)) {
-                        $initials .= strtoupper(substr($lastname, 0, 1));
-                    }
-                    // For example, "JD.png"
-                    $profile_picture = $initials . '.png';
-
-                    // Insert the new user into the database, including the profile_picture column.
-                    $sql = "INSERT INTO users (idno, lastname, firstname, middlename, course, level, email, username, password, role, profile_picture) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                    $stmt = $conn->prepare($sql);
-                    // Adjust the types. Assuming idno is an integer:
-                    $stmt->bind_param("issssisssss", $idno, $lastname, $firstname, $middlename, $course, $level, $email, $username, $password, $role, $profile_picture);
-            
-                    if ($stmt->execute()) {
-                        header("Location: register.php?success=true");
-                        exit();
-                    } else {
-                        echo "<p style='color:red;'>Error: " . $stmt->error . "</p>";
-                    }
-                    $stmt->close();
-                }               
+                    echo "<p style='color:red;'>Error: " . $stmt->error . "</p>";
+                }
+                $stmt->close();
             }
         }
     }
@@ -209,8 +196,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <select id="course" name="course" required class="form-control">
                             <option value="" disabled <?php echo !isset($_POST['course']) ? 'selected' : ''; ?>>Course</option>
                             <?php foreach ($courses as $course): ?>
-                                <option value="<?php echo $course['id']; ?>" <?php echo isset($_POST['course']) && $_POST['course'] == $course['id'] ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($course['course_name']); ?>
+                                <option value="<?php echo htmlspecialchars($course); ?>" <?php echo isset($_POST['course']) && $_POST['course'] == $course ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($course); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
