@@ -655,55 +655,48 @@ function formatFileSize($bytes) {
 
         // Print functionality for preview modal
         printPreview.addEventListener('click', function() {
-            // Get the preview content
-            const previewContent = document.getElementById('previewContent').cloneNode(true);
+            // Get the file type from the preview content
+            let fileType = '';
+            const img = previewContent.querySelector('img');
+            const object = previewContent.querySelector('object');
+            const video = previewContent.querySelector('video');
             
-            // Create a temporary container
-            const tempDiv = document.createElement('div');
-            tempDiv.style.width = '100%';
-            tempDiv.style.maxWidth = '800px';
-            tempDiv.style.margin = '0 auto';
+            if (img) {
+                fileType = 'image';
+            } else if (object && object.data) {
+                fileType = 'pdf';
+            } else if (video) {
+                fileType = 'video';
+            }
             
-            // Add the preview content
-            tempDiv.appendChild(previewContent);
-            
-            // Print using printJS
-            printJS({
-                printable: tempDiv.innerHTML,
-                type: 'raw-html',
-                style: `
-                    @media print {
-                        body { margin: 20px; }
-                        img, video, object { 
-                            max-width: 100% !important; 
-                            height: auto !important;
-                        }
-                        object { 
-                            width: 100% !important;
-                            height: 80vh !important;
-                        }
-                        .no-preview { 
-                            text-align: center;
-                            padding: 40px 0;
-                        }
-                        .no-preview i {
-                            font-size: 48px;
-                            margin-bottom: 20px;
-                        }
-                        .no-preview p {
-                            font-size: 16px;
-                        }
-                    }
-                `,
-                onLoadingEnd: function() {
-                    tempDiv.remove();
+            if (fileType === 'pdf') {
+                // For PDFs, open in new window and print
+                const pdfUrl = object.data;
+                const printWindow = window.open(pdfUrl, '_blank');
+                if (printWindow) {
+                    printWindow.onload = function() {
+                        printWindow.print();
+                    };
                 }
-            });
+            } else if (fileType === 'image') {
+                // For images, use printJS
+                printJS({
+                    printable: img.src,
+                    type: 'image',
+                    imageStyle: 'width:100%;max-width:800px;'
+                });
+            } else if (fileType === 'video') {
+                // For videos, show message
+                alert('Video printing is not supported. Please use the download option instead.');
+            } else {
+                // For other files, show message
+                alert('Printing is not supported for this file type. Please use the download option instead.');
+            }
         });
 
         // Function to preview a resource
         function previewResource(resourceId) {
-            fetch('get_resources.php?id=' + resourceId)
+            fetch('get_resource.php?resource_id=' + resourceId)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');

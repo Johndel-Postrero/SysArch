@@ -26,7 +26,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['logout_idno'])) {
     
     try {
         // 1. Update the sitin table to log out the user
-        $logoutQuery = $conn->prepare("UPDATE sitin SET time_out = ? WHERE idno = ? AND sitin_date = CURDATE() AND time_out IS NULL");
+        $logoutQuery = $conn->prepare("UPDATE sitin SET time_out = ? WHERE idno = ? AND time_out IS NULL");
         if (!$logoutQuery) {
             throw new Exception("Prepare failed: " . $conn->error);
         }
@@ -43,7 +43,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['logout_idno'])) {
             $updateReservation = $conn->prepare("UPDATE reservations 
                                                SET time_in_status = 'completed' 
                                                WHERE idno = ? 
-                                               AND reservation_date = CURDATE() 
                                                AND time_in_status = 'sit-inned'");
             if (!$updateReservation) {
                 throw new Exception("Prepare failed: " . $conn->error);
@@ -82,7 +81,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['logout_idno'])) {
 }
 
 // Fetch data from the sitin table for students who are currently sitting in
-$sql = "SELECT sitin.sitin_id, sitin.idno, users.lastname, users.firstname, users.middlename, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, users.session 
+$sql = "SELECT sitin.sitin_id, sitin.idno, users.lastname, users.firstname, users.middlename, sitin.purpose, sitin.lab_number, sitin.time_in, sitin.time_out, users.session, sitin.sitin_date 
         FROM sitin 
         JOIN users ON sitin.idno = users.idno
         WHERE sitin.time_out IS NULL";
@@ -215,6 +214,7 @@ $conn->close();
                                     <th class="py-4 px-4 text-center">PURPOSE</th>
                                     <th class="py-4 px-4 text-center">LAB</th>
                                     <th class="py-4 px-4 text-center">SESSION</th>
+                                    <th class="py-4 px-4 text-center">DATE</th>
                                     <th class="py-4 px-4 text-center">STATUS</th>
                                     <th class="py-4 px-4 text-center">ACTION</th>
                                 </tr>
@@ -229,6 +229,7 @@ $conn->close();
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['purpose']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['lab_number']); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['session']); ?></td>
+                                            <td class="py-4 px-4 text-center"><?php echo date('M d, Y', strtotime($sitin['sitin_date'])); ?></td>
                                             <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['status']); ?></td>
                                             <td class="py-4 px-4 text-center">
                                                 <form method="POST" action="current_sit.php">
@@ -242,7 +243,7 @@ $conn->close();
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="8" class="py-4 px-4 text-center">No students currently sitting in.</td>
+                                        <td colspan="9" class="py-4 px-4 text-center">No students currently sitting in.</td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>

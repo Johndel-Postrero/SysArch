@@ -165,7 +165,6 @@ $initials = "G"; // Default initials
 updateUserSession($conn, $firstname, $middlename, $lastname, $profile_picture, $role, $initials);
 
 // Get notifications
-// Get notifications (only admin ones)
 $notifications = getAdminNotifications($conn, 5); // Get last 5 admin notifications
 $unreadCount = countUnreadAdminNotifications($conn);
 
@@ -380,12 +379,18 @@ document.querySelectorAll('.mark-read').forEach(button => {
         updateNotificationBadge();
         
         // Send request to server in background
-        fetch(window.location.href, {
+        fetch('mark_notification_read.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: 'mark_read=1&notification_id=' + notificationId
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                console.error('Error marking notification as read:', data.error);
+            }
         })
         .catch(error => {
             console.error('Error:', error);
@@ -412,12 +417,18 @@ if (markAllReadBtn) {
         this.remove();
         
         // Send request to server in background
-        fetch(window.location.href, {
+        fetch('mark_notification_read.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: 'mark_all_read=1'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                console.error('Error marking all notifications as read:', data.error);
+            }
         })
         .catch(error => {
             console.error('Error:', error);
@@ -454,6 +465,75 @@ document.addEventListener('click', function(event) {
         notificationDropdown.classList.add('hidden');
     }
 });
+
+// Check for new notifications every 30 seconds
+setInterval(function() {
+    fetch('get_notifications.php')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const notificationDropdown = document.getElementById('notificationDropdown');
+                const notificationList = notificationDropdown.querySelector('.max-h-80');
+                
+                // Update notifications if there are new ones
+                if (data.notifications.length > 0) {
+                    let html = '';
+                    data.notifications.forEach(notification => {
+                        html += `
+                            <div class="notification-item ${notification.is_read ? '' : 'unread'} p-4 border-b" data-id="${notification.notification_id}">
+                                <div class="flex justify-between">
+                                    <p class="text-sm ${notification.is_read ? 'text-gray-600' : 'text-gray-900 font-medium'}">${notification.message}</p>
+                                    ${!notification.is_read ? `
+                                        <button class="mark-read text-xs text-blue-500 hover:text-blue-700 ml-2">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    ` : ''}
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">${new Date(notification.created_at).toLocaleString()}</p>
+                            </div>
+                        `;
+                    });
+                    notificationList.innerHTML = html;
+                    
+                    // Update badge count
+                    const badge = document.querySelector('.notification-badge');
+                    if (data.unread_count > 0) {
+                        if (!badge) {
+                            const newBadge = document.createElement('div');
+                            newBadge.className = 'notification-badge';
+                            newBadge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                            document.getElementById('notificationBell').appendChild(newBadge);
+                        } else {
+                            badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                        }
+                    } else if (badge) {
+                        badge.remove();
+                    }
+                    
+                    // Reattach event listeners
+                    document.querySelectorAll('.mark-read').forEach(button => {
+                        button.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            const notificationItem = this.closest('.notification-item');
+                            const notificationId = notificationItem.dataset.id;
+                            
+                            styleNotificationAsRead(notificationItem);
+                            updateNotificationBadge();
+                            
+                            fetch('mark_notification_read.php', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                },
+                                body: 'mark_read=1&notification_id=' + notificationId
+                            });
+                        });
+                    });
+                }
+            }
+        })
+        .catch(error => console.error('Error checking notifications:', error));
+}, 30000);
 </script>
 </body>
 </html>

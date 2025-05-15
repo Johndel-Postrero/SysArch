@@ -427,6 +427,10 @@ CREATE TABLE `users` (
   `session` int(11) DEFAULT 30 CHECK (`role` = 'student' or `session` is null)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+INSERT INTO `users` (`user_id`, `idno`, `lastname`, `firstname`, `middlename`, `course`, `level`, `email`, `username`, `password`, `role`, `session`) VALUES 
+(1, 2094998, 'Admin', 'Admin', ' ', ' ', ' ', 'admin@gmail.com', 'admin', 'admin', 'admin', NULL);
+
+
 ALTER TABLE `announcements`
   ADD PRIMARY KEY (`announcement_id`),
   ADD KEY `admin_id` (`admin_id`);

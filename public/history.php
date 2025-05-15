@@ -28,8 +28,11 @@ function containsFoulWords($message, $foulWords) {
 // Function to save a notification
 // Function to save a notification specifically for admins
 function saveAdminNotification($message, $conn) {
-    $stmt = $conn->prepare("INSERT INTO notifications (message, notification_type) VALUES (?, 'admin')");
-    $stmt->bind_param("s", $message);
+    // Get admin user ID (assuming admin user_id is 1)
+    $admin_id = 1;
+    
+    $stmt = $conn->prepare("INSERT INTO notifications (message, notification_type, user_id) VALUES (?, 'admin', ?)");
+    $stmt->bind_param("si", $message, $admin_id);
     $stmt->execute();
     $stmt->close();
 }
