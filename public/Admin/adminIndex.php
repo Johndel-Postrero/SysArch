@@ -131,7 +131,7 @@ $conn->close();
         .chart#labChartContainer {
             width: 30%; /* Smaller width for lab pie chart */
         }
-        .chart#sitinsPerLabChartContainer {
+        .chart#dailyTrendsChartContainer {
             width: 40%; /* Wider width for bar chart */
             height: 450px; /* Increased height for bar chart */
         }
@@ -200,9 +200,9 @@ $conn->close();
                         <canvas id="labChart"></canvas>
                     </div>
 
-                    <!-- Sit-ins per Lab Bar Chart -->
-                    <div class="chart" id="sitinsPerLabChartContainer">
-                        <canvas id="sitinsPerLabChart"></canvas>
+                    <!-- Daily Sit-in Trends Line Chart -->
+                    <div class="chart" id="dailyTrendsChartContainer">
+                        <canvas id="dailyTrendsChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -305,23 +305,40 @@ $conn->close();
             }]
         };
 
-        // Data for Bar Chart (Sit-ins per Lab)
-        const sitinsPerLabData = {
-            labels: ["524", "526", "528", "530", "542", "544"],
-            datasets: [{
-                label: 'Sit-ins',
-                data: [
-                    <?php
-                    $labCounts = array_fill_keys(["524", "526", "528", "530", "542", "544"], 0);
+        // Data for Daily Sit-in Trends Line Chart
+        const dailyTrendsData = {
+            labels: [
+                <?php
+                // Get the last 7 days
+                $dates = [];
+                $counts = [];
+                for ($i = 6; $i >= 0; $i--) {
+                    $date = date('Y-m-d', strtotime("-$i days"));
+                    $dates[] = "'" . date('M d', strtotime($date)) . "'";
+                    
+                    // Count sit-ins for this date
+                    $count = 0;
                     foreach ($sitinData as $sitin) {
-                        if (array_key_exists($sitin['lab_number'], $labCounts)) {
-                            $labCounts[$sitin['lab_number']]++;
+                        if (date('Y-m-d', strtotime($sitin['created_at'])) === $date) {
+                            $count++;
                         }
                     }
-                    echo implode(', ', $labCounts);
-                    ?>
-                ],
-                backgroundColor: "#3B82F6",
+                    $counts[] = $count;
+                }
+                echo implode(', ', $dates);
+                ?>
+            ],
+            datasets: [{
+                label: 'Daily Sit-ins',
+                data: [<?php echo implode(', ', $counts); ?>],
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#3B82F6',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 4
             }]
         };
 
@@ -365,32 +382,58 @@ $conn->close();
             },
         });
 
-        // Render Sit-ins per Lab Bar Chart
-        const sitinsPerLabChart = new Chart(document.getElementById('sitinsPerLabChart'), {
-            type: 'bar',
-            data: sitinsPerLabData,
+        // Render Daily Sit-in Trends Line Chart
+        const dailyTrendsChart = new Chart(document.getElementById('dailyTrendsChart'), {
+            type: 'line',
+            data: dailyTrendsData,
             options: {
                 responsive: true,
-                maintainAspectRatio: false, // Disable aspect ratio to allow custom height
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
                         display: false,
                     },
                     title: {
                         display: true,
-                        text: 'Sit-ins per Lab',
+                        text: 'Daily Sit-in Trends (Last 7 Days)',
                     },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return `Sit-ins: ${context.raw}`;
+                            }
+                        }
+                    }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
                         ticks: {
-                            stepSize: 1, // Ensure y-axis shows whole numbers
+                            stepSize: 1,
+                            precision: 0
                         },
+                        title: {
+                            display: true,
+                            text: 'Number of Sit-ins'
+                        }
                     },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        }
+                    }
                 },
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                }
             },
         });
     </script>
 </body>
+</html>
 </html>

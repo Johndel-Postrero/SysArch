@@ -5,6 +5,9 @@ header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1.
 header("Pragma: no-cache"); // HTTP 1.0.
 header("Expires: 0"); // Proxies.
 
+// Set timezone to Asia/Manila
+date_default_timezone_set('Asia/Manila');
+
 // Check if the user is logged in
 if (!isset($_SESSION['login_user'])) {
     header("Location: ../login.php");
@@ -13,6 +16,9 @@ if (!isset($_SESSION['login_user'])) {
 
 // Include the database connection
 require __DIR__ . '/../../config/db.php';
+
+// Run automatic time-in check
+require __DIR__ . '/auto_time_in.php';
 
 // Fetch pending reservations
 $pendingSql = "SELECT r.reservation_id, r.idno, u.lastname, u.firstname, u.middlename, u.course, u.level, 
@@ -30,24 +36,7 @@ if ($pendingResult->num_rows > 0) {
     }
 }
 
-// Fetch approved reservations that haven't been timed in yet
-$approvedSql = "SELECT r.reservation_id, r.idno, u.lastname, u.firstname, u.middlename, u.course, u.level, 
-               r.lab_number, r.pc_number, r.reservation_date, r.time_in, r.purpose, r.status, r.created_at
-        FROM reservations r
-        JOIN users u ON r.idno = u.idno
-        WHERE r.status = 'approved' AND r.time_in_status = 'pending'
-        ORDER BY r.reservation_date DESC, r.time_in DESC";
-
-$approvedResult = $conn->query($approvedSql);
-$approvedReservations = [];
-if ($approvedResult->num_rows > 0) {
-    while ($row = $approvedResult->fetch_assoc()) {
-        $approvedReservations[] = $row;
-    }
-}
-
 // Fetch reservation logs (declined/sit-inned)
-// Fetch reservation logs (declined/sit-inned/completed)
 $logsSql = "SELECT r.reservation_id, r.idno, u.lastname, u.firstname, u.middlename, u.course, u.level, 
            r.lab_number, r.pc_number, r.reservation_date, r.time_in, r.purpose, 
            CASE 
@@ -55,10 +44,10 @@ $logsSql = "SELECT r.reservation_id, r.idno, u.lastname, u.firstname, u.middlena
                WHEN r.time_in_status = 'sit-inned' AND 
                     EXISTS (SELECT 1 FROM sitin s WHERE s.idno = r.idno AND s.lab_number = r.lab_number 
                             AND s.sitin_date = r.reservation_date AND s.time_out IS NULL) THEN 'sit-inned'
-               WHEN r.time_in_status = 'completed' OR 
+               WHEN r.time_in_status = 'completed' AND 
                     EXISTS (SELECT 1 FROM sitin s WHERE s.idno = r.idno AND s.lab_number = r.lab_number 
                             AND s.sitin_date = r.reservation_date AND s.time_out IS NOT NULL) THEN 'completed'
-               WHEN r.status = 'approved' THEN 'approved'
+               WHEN r.status = 'approved' AND r.time_in_status = 'pending' THEN 'approved'
                ELSE r.status
            END as status,
            r.created_at
@@ -163,9 +152,6 @@ $conn->close();
                     <div class="flex border-b mb-4">
                         <button id="pendingTab" class="px-4 py-2 tab-active" onclick="switchTab('pending')">
                             <i class="fas fa-hourglass-half mr-2"></i> Pending
-                        </button>
-                        <button id="approvedTab" class="px-4 py-2" onclick="switchTab('approved')">
-                            <i class="fas fa-check-circle mr-2"></i> Approved
                         </button>
                         <button id="logsTab" class="px-4 py-2" onclick="switchTab('logs')">
                             <i class="fas fa-history mr-2"></i> Logs
@@ -307,62 +293,6 @@ $conn->close();
                         <div class="flex justify-between items-center mt-4">
                             <div class="text-gray-600" id="pendingPaginationInfo"></div>
                             <div class="flex space-x-2" id="pendingPaginationControls"></div>
-                        </div>
-                    </div>
-
-                    <!-- Approved Reservations Tab Content -->
-                    <div id="approvedContent" class="tab-content">
-                        <div class="overflow-x-auto">
-                            <table id="approvedTable" class="min-w-full bg-white shadow-md rounded-lg">
-                                <thead>
-                                    <tr class="bg-[#002044] text-white">
-                                        <th class="py-4 px-4 text-center">ID Number</th>
-                                        <th class="py-4 px-4 text-center">Student Name</th>
-                                        <th class="py-4 px-4 text-center">Lab</th>
-                                        <th class="py-4 px-4 text-center">PC</th>
-                                        <th class="py-4 px-4 text-center">Date</th>
-                                        <th class="py-4 px-4 text-center">Time In</th>
-                                        <th class="py-4 px-4 text-center">Purpose</th>
-                                        <th class="py-4 px-4 text-center">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if (empty($approvedReservations)): ?>
-                                        <tr>
-                                            <td colspan="9" class="py-4 px-4 text-center">No approved reservations</td>
-                                        </tr>
-                                    <?php else: ?>
-                                        <?php foreach ($approvedReservations as $index => $reservation): ?>
-                                            <tr class="<?php echo ($index % 2 === 0) ? 'bg-gray-100' : 'bg-gray-200'; ?>">
-                                                <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['idno']); ?></td>
-                                                <td class="py-4 px-4 text-center">
-                                                    <?php echo htmlspecialchars($reservation['lastname'] . ', ' . $reservation['firstname'] . ' ' . substr($reservation['middlename'], 0, 1) . '.'); ?>
-                                                </td>
-                                                <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['lab_number']); ?></td>
-                                                <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['pc_number']); ?></td>
-                                                <td class="py-4 px-4 text-center">
-                                                    <?php echo htmlspecialchars(date('M j, Y', strtotime($reservation['reservation_date']))); ?>
-                                                </td>
-                                                <td class="py-4 px-4 text-center">
-                                                    <?php echo htmlspecialchars(date('g:i A', strtotime($reservation['time_in']))); ?>
-                                                </td>
-                                                <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['purpose']); ?></td>
-                                                <td class="py-4 px-4 text-center">
-                                                    <button onclick="timeInReservation(<?php echo $reservation['reservation_id']; ?>)" 
-                                                        class="bg-blue-500 text-white px-4 py-2 rounded">
-                                                        Time In
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                        <!-- Pagination for Approved -->
-                        <div class="flex justify-between items-center mt-4">
-                            <div class="text-gray-600" id="approvedPaginationInfo"></div>
-                            <div class="flex space-x-2" id="approvedPaginationControls"></div>
                         </div>
                     </div>
 
@@ -675,68 +605,34 @@ $conn->close();
         }
 
         function updateReservationStatus(reservationId, status) {
-    fetch('update_reservation.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `reservation_id=${reservationId}&status=${status}`
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
-        return response.json().catch(() => {
-            throw new Error('Invalid JSON response');
-        });
-    })
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            location.reload();
-        } else {
-            throw new Error(data.message || 'Unknown error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error: ' + error.message);
-    });
-}
-
-function timeInReservation(reservationId) {
-    if (confirm("Are you sure you want to mark this reservation as timed in?")) {
-        fetch('time_in_reservation.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `reservation_id=${reservationId}`
-        })
-        .then(response => {
-            // First check if the response is JSON
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                return response.text().then(text => {
-                    throw new Error(`Invalid response: ${text}`);
+            fetch('update_reservation.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `reservation_id=${reservationId}&status=${status}`
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json().catch(() => {
+                    throw new Error('Invalid JSON response');
                 });
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                location.reload();
-            } else {
-                throw new Error(data.message || 'Unknown error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error: ' + error.message);
-        });
-    }
-}
+            })
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    throw new Error(data.message || 'Unknown error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
+            });
+        }
     </script>
 </body>
 </html>

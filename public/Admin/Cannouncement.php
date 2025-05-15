@@ -269,7 +269,7 @@ if (isset($_SESSION['firstname']) && isset($_SESSION['lastname'])) {
                     <div id="announcement-container" class="space-y-4">
                         <?php if ($result && $result->num_rows > 0): ?>
                             <?php while ($row = $result->fetch_assoc()): ?>
-                                <div class="bg-white rounded-lg shadow p-6 mb-4 cursor-pointer clickable-card" onclick="viewAnnouncement(<?php echo $row['announcement_id']; ?>)">
+                                <div class="bg-white rounded-lg shadow p-6 mb-4 cursor-pointer clickable-card" onclick="handleCardClick(event, <?php echo $row['announcement_id']; ?>)">
                                     <div class="flex items-center mb-4">
                                         <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
                                             <?php 
@@ -390,44 +390,78 @@ if (isset($_SESSION['firstname']) && isset($_SESSION['lastname'])) {
         }
 
         // Function to open modal in "Update Post" mode
-        function openUpdateModal(postId) {
-            fetch(`get_post.php?announcement_id=${postId}`)
+        function viewAnnouncement(id) {
+            currentAnnouncementId = id;
+            fetch(`get_post.php?announcement_id=${id}`)
                 .then(response => response.json())
                 .then(data => {
-                    document.getElementById("modalTitle").textContent = "Update Post";
-                    document.getElementById("submitButton").textContent = "Update";
-                    document.getElementById("post_id").value = data.announcement_id; // Set post ID
-                    document.getElementById("modalTitleInput").value = data.title; // Set title
-                    document.getElementById("modalDescriptionInput").value = data.description; // Set description
+                    if (data.announcement_id) {
+                        // Open the modal in update mode
+                        document.getElementById("modalTitle").textContent = "Update Post";
+                        document.getElementById("submitButton").textContent = "Update";
+                        document.getElementById("post_id").value = data.announcement_id;
+                        document.getElementById("modalTitleInput").value = data.title;
+                        document.getElementById("modalDescriptionInput").value = data.description;
 
-                    // Display attachment if it exists
-                    const preview = document.getElementById("preview");
-                    preview.innerHTML = ""; // Clear previous preview
-                    if (data.attachment) {
-                        const fileExtension = data.attachment.split('.').pop().toLowerCase();
-                        const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+                        // Display attachment if it exists
+                        const preview = document.getElementById("preview");
+                        preview.innerHTML = ""; // Clear previous preview
+                        if (data.attachment) {
+                            const fileExtension = data.attachment.split('.').pop().toLowerCase();
+                            const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
 
-                        if (imageExtensions.includes(fileExtension)) {
-                            // Display image
-                            const img = document.createElement("img");
-                            img.src = `../announce/${data.attachment}`;
-                            img.alt = "Attachment Preview";
-                            img.classList.add("w-full", "rounded-lg", "mb-4");
-                            preview.appendChild(img);
-                        } else {
-                            // Display download link for non-image files
-                            const link = document.createElement("a");
-                            link.href = `../announce/${data.attachment}`;
-                            link.download = data.attachment;
-                            link.textContent = data.attachment;
-                            link.classList.add("text-blue-500", "hover:text-blue-700", "underline");
-                            preview.appendChild(link);
+                            if (imageExtensions.includes(fileExtension)) {
+                                // Display image
+                                const img = document.createElement("img");
+                                img.src = `../announce/${data.attachment}`;
+                                img.alt = "Attachment Preview";
+                                img.classList.add("w-full", "rounded-lg", "mb-4");
+                                preview.appendChild(img);
+                            } else {
+                                // Display download link for non-image files
+                                const link = document.createElement("a");
+                                link.href = `../announce/${data.attachment}`;
+                                link.download = data.attachment;
+                                link.textContent = data.attachment;
+                                link.classList.add("text-blue-500", "hover:text-blue-700", "underline");
+                                preview.appendChild(link);
+                            }
                         }
-                    }
 
-                    document.getElementById("overlay").style.display = "flex";
+                        // Add delete button
+                        const submitButton = document.getElementById("submitButton");
+                        const deleteButton = document.createElement("button");
+                        deleteButton.type = "button";
+                        deleteButton.className = "w-full bg-red-600 text-white py-2 rounded-lg mt-2";
+                        deleteButton.textContent = "Delete Post";
+                        deleteButton.onclick = function() {
+                            if (confirm("Are you sure you want to delete this post?")) {
+                                deleteAnnouncement(id);
+                            }
+                        };
+                        submitButton.parentNode.insertBefore(deleteButton, submitButton.nextSibling);
+
+                        // Show the modal
+                        document.getElementById("overlay").style.display = "flex";
+                    }
+                });
+        }
+
+        function deleteAnnouncement(id) {
+            fetch(`delete_announcement.php?announcement_id=${id}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert("Post deleted successfully!");
+                        window.location.reload();
+                    } else {
+                        alert("Error deleting post: " + data.message);
+                    }
                 })
-                .catch(error => console.error("Error fetching post data:", error));
+                .catch(error => {
+                    console.error("Error:", error);
+                    alert("An error occurred while deleting the post");
+                });
         }
 
         // Function to filter announcements based on search input
@@ -449,24 +483,6 @@ if (isset($_SESSION['firstname']) && isset($_SESSION['lastname'])) {
         }
 
         let currentAnnouncementId = null;
-
-        function viewAnnouncement(id) {
-            currentAnnouncementId = id;
-            fetch(`get_post.php?announcement_id=${id}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.announcement_id) {
-                        document.getElementById('viewAnnouncementTitle').textContent = data.title;
-                        document.getElementById('viewAnnouncementDate').textContent = new Date(data.created_at).toLocaleString();
-                        document.getElementById('viewAnnouncementContent').innerHTML = data.description;
-                        
-                        // Load comments
-                        loadComments(id);
-                        
-                        new bootstrap.Modal(document.getElementById('viewAnnouncementModal')).show();
-                    }
-                });
-        }
 
         function toggleComments(announcementId, event) {
             event.stopPropagation(); // Prevent the card click event
@@ -639,6 +655,18 @@ if (isset($_SESSION['firstname']) && isset($_SESSION['lastname'])) {
                     loadComments(announcementId);
                 }
             });
+        }
+
+        function handleCardClick(event, id) {
+            // Check if the click was on the comments section or its children
+            if (event.target.closest('.comments-section') || 
+                event.target.closest('button[onclick^="toggleComments"]') ||
+                event.target.closest('#commentsList-' + id)) {
+                return; // Don't open update modal if clicking on comments
+            }
+            
+            // Otherwise, open the update modal
+            viewAnnouncement(id);
         }
     </script>
     <script>
