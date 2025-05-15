@@ -22,22 +22,22 @@ The CCS-SITIN Monitoring System is a web-based application designed for the Coll
 
 ## Installation
 
-### Step 1: Set up the environment
-1. Download and install [XAMPP](https://www.apachefriends.org/download.html) if you don't have it already
-2. Start the Apache and MySQL services from the XAMPP control panel
-
-### Step 2: Set up the database
-1. Open your web browser and navigate to `http://localhost/phpmyadmin`
-2. Create a new database named `sitin`
-3. Import the database from the `database/sitin.sql` file
-
-### Step 3: Set up the application
+### Step 1: Clone the repository
 1. Clone the repository into your XAMPP htdocs folder:
    ```
    git clone https://github.com/GelaPostrero/CCS-SITIN.git
    ```
    Alternatively, you can download the ZIP file from https://github.com/GelaPostrero/CCS-SITIN and extract it to `C:\xampp\htdocs\CCS-SITIN` or `/Applications/XAMPP/htdocs/CCS-SITIN` depending on your OS
 2. Make sure the file permissions are set correctly (readable for the web server)
+
+### Step 2: Set up the environment
+1. Download and install [XAMPP](https://www.apachefriends.org/download.html) if you don't have it already
+2. Start the Apache and MySQL services from the XAMPP control panel
+
+### Step 3: Set up the database
+1. Open your web browser and navigate to `http://localhost/phpmyadmin`
+2. Create a new database named `sitin`
+3. Import the database from the `database/sitin.sql` file
 
 ## Usage
 
