@@ -25,7 +25,7 @@ if (isset($_GET['logout'])) {
 
     <nav class="navbar">
         <div class="nav-container">
-            <a href="#" class="navbar-brand">College of Computer Studies Sit-in Monitoring System</a>
+            <a href="Landing.php" class="navbar-brand">College of Computer Studies Sit-in Monitoring System</a>
             <ul class="navbar-links">
                 <li><a href="#" class="nav-active">Dashboard</a></li>
                 <li><a href="#">Profile</a></li>

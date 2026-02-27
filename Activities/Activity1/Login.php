@@ -56,9 +56,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <nav class="navbar">
         <div class="nav-container">
-            <a href="#" class="navbar-brand">College of Computer Studies Sit-in Monitoring System</a>
+            <a href="index.php" class="navbar-brand">College of Computer Studies Sit-in Monitoring System</a>
             <ul class="navbar-links">
-                <li><a href="#">Home</a></li>
+                <li><a href="index.php">Home</a></li>
                 <li class="dropdown">
                     <a href="#" class="dropdown-toggle">Community</a>
                     <div class="dropdown-menu">
