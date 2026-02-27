@@ -101,8 +101,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <form action="" method="POST" id="loginForm">
                     <div class="form-group">
                         <label for="idNumber">ID Number</label>
-                        <input type="text" id="idNumber" name="idNumber" placeholder="e.g. 2024-0001" pattern="\d{4}-\d{4}" title="Format: YYYY-NNNN" required value="<?php echo isset($_POST['idNumber']) ? htmlspecialchars($_POST['idNumber']) : ''; ?>">
-                        <small style="display: block; margin-top: 4px; color: #777; font-size: 11px; font-weight: 500;">Format: YYYY-NNNN (e.g., 2024-1234)</small>
+                        <input type="text" id="idNumber" name="idNumber" placeholder="e.g. 21411277" pattern="\d{8}" title="Must be exactly 8 digits" maxlength="8" required value="<?php echo isset($_POST['idNumber']) ? htmlspecialchars($_POST['idNumber']) : ''; ?>">
+                        <small style="display: block; margin-top: 4px; color: #777; font-size: 11px; font-weight: 500;">Must be exactly 8 digits</small>
                     </div>
 
                     <div class="form-group">
@@ -128,7 +128,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 
     <footer class="footer">
-        &copy; 2024 College of Computer Studies
+        &copy; 2026 IT. All rights reserved. | Designed by POSTRERO
     </footer>
 
 </body>

@@ -53,7 +53,7 @@ if (isset($_GET['logout'])) {
     </div>
 
     <footer class="footer">
-        &copy; 2024 College of Computer Studies
+        &copy; 2026 IT. All rights reserved. | Designed by POSTRERO
     </footer>
 
 </body>
