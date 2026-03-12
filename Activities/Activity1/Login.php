@@ -46,49 +46,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - College of Computer Studies Sit-in Monitoring System</title>
+    <title>Login - CCS Sit-in Monitoring System</title>
     <meta name="description" content="Login to the College of Computer Studies Sit-in Monitoring System">
     <link rel="stylesheet" href="../../wwwroots/ccs/site.css">
     <link rel="icon" type="image/png" href="../../wwwroots/favIcon/ccsLogo.png">
 </head>
 <body>
 
-
     <nav class="navbar">
         <div class="nav-container">
-            <a href="#" class="navbar-brand">College of Computer Studies Sit-in Monitoring System</a>
+            <a href="index.php" class="navbar-brand">
+                <img src="../../wwwroots/favIcon/ccsLogo.png" alt="CCS" class="brand-icon">
+                CCS Sit-in Monitoring System
+            </a>
             <ul class="navbar-links">
-                <li><a href="#">Home</a></li>
-                <li class="dropdown">
-                    <a href="#" class="dropdown-toggle">Community</a>
-                    <div class="dropdown-menu">
-                        <a href="#">Forum</a>
-                        <a href="#">Events</a>
-                        <a href="#">Announcements</a>
-                    </div>
-                </li>
-                <li><a href="#">About</a></li>
-                <li><a href="#" class="nav-active">Login</a></li>
+                <li><a href="index.php">Home</a></li>
+                <li><a href="Login.php" class="nav-active">Login</a></li>
                 <li><a href="Register.php">Register</a></li>
             </ul>
         </div>
     </nav>
 
-
     <div class="main-content">
         <div class="login-container">
-
 
             <div class="logo-section">
                 <img src="../../wwwroots/img/ccsLogo-removebg-preview.png" alt="College of Computer Studies Logo">
                 <div class="system-description">
-                    <h1>CCS Sit-in Monitoring System</h1>
-                    <p>&nbsp;&nbsp;&nbsp;&nbsp; A specialized management platform designed for the College of Computer Studies to streamline laboratory sit-in sessions, track student attendance, and monitor real-time laboratory availability with precision and ease.</p>
+                    <h1>CCS Sit-in <span class="accent">Monitoring</span> System</h1>
+                    <p>A specialized management platform designed for the College of Computer Studies to streamline laboratory sit-in sessions, track student attendance, and monitor real-time laboratory availability.</p>
                 </div>
             </div>
 
-
-            <div class="form-section">
+            <div class="form-section" style="position: relative;">
+                <a href="index.php" class="btn-back">&larr;</a>
                 <h2 class="form-title">Welcome Back</h2>
                 <p class="form-subtitle">Sign in to your account</p>
 
@@ -101,13 +92,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <form action="" method="POST" id="loginForm">
                     <div class="form-group">
                         <label for="idNumber">ID Number</label>
-                        <input type="text" id="idNumber" name="idNumber" placeholder="e.g. 2024-0001" pattern="\d{4}-\d{4}" title="Format: YYYY-NNNN" required value="<?php echo isset($_POST['idNumber']) ? htmlspecialchars($_POST['idNumber']) : ''; ?>">
-                        <small style="display: block; margin-top: 4px; color: #777; font-size: 11px; font-weight: 500;">Format: YYYY-NNNN (e.g., 2024-1234)</small>
+                        <input type="text" id="idNumber" name="idNumber" placeholder="e.g. 21411277" pattern="\d{8}" title="8 digit number" required value="<?php echo isset($_POST['idNumber']) ? htmlspecialchars($_POST['idNumber']) : ''; ?>">
+                        <small class="form-helper">Format: xxxxxxxx (e.g., 21411277)</small>
                     </div>
 
                     <div class="form-group">
                         <label for="password">Password</label>
-                        <input type="password" id="password" name="password" placeholder="Enter password" required>
+                        <input type="password" id="password" name="password" placeholder="Enter your password" required>
                     </div>
 
                     <div class="options-row">
@@ -126,9 +117,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </div>
 
-
     <footer class="footer">
-        &copy; 2024 College of Computer Studies
+        &copy; 2024 College of Computer Studies &mdash; University of Cebu
     </footer>
 
 </body>

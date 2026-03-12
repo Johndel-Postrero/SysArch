@@ -35,7 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 $stmt = $pdo->prepare("INSERT INTO users (IDNum, LName, FName, MName, level, password, email, course, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 if ($stmt->execute([$idNum, $lName, $fName, $mName, $level, $hashedPassword, $email, $course, $address])) {
-                    $message = "Registration successful! You can now <a href='Login.php' style='color: inherit; text-decoration: underline;'>login</a>.";
+                    $message = "Registration successful! You can now <a href='Login.php' style='color: inherit; text-decoration: underline; font-weight: 700;'>login</a>.";
                     $messageType = "success";
                 } else {
                     $message = "Something went wrong. Please try again.";
@@ -54,7 +54,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registration - College of Computer Studies</title>
+    <title>Register - CCS Sit-in Monitoring System</title>
     <meta name="description" content="Register for the College of Computer Studies Sit-in Monitoring System">
     <link rel="stylesheet" href="../../wwwroots/ccs/site.css">
     <link rel="icon" type="image/png" href="../../wwwroots/favIcon/ccsLogo.png">
@@ -63,20 +63,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <nav class="navbar">
         <div class="nav-container">
-            <a href="Login.php" class="navbar-brand">College of Computer Studies Sit-in Monitoring System</a>
+            <a href="index.php" class="navbar-brand">
+                <img src="../../wwwroots/favIcon/ccsLogo.png" alt="CCS" class="brand-icon">
+                CCS Sit-in Monitoring System
+            </a>
             <ul class="navbar-links">
-                <li><a href="Login.php">Home</a></li>
-                <li class="dropdown">
-                    <a href="#" class="dropdown-toggle">Community</a>
-                    <div class="dropdown-menu">
-                        <a href="#">Forum</a>
-                        <a href="#">Events</a>
-                        <a href="#">Announcements</a>
-                    </div>
-                </li>
-                <li><a href="#">About</a></li>
+                <li><a href="index.php">Home</a></li>
                 <li><a href="Login.php">Login</a></li>
-                <li><a href="#" class="nav-active">Register</a></li>
+                <li><a href="Register.php" class="nav-active">Register</a></li>
             </ul>
         </div>
     </nav>
@@ -85,10 +79,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <div class="login-container register-layout">
 
             <div class="logo-section">
-                <img src="../../wwwroots/img/registration-illustration.png" alt="Registration Illustration" style="width: 500px; margin-left: 0;">
+                <img src="../../wwwroots/img/registration-illustration.png" alt="Registration Illustration" style="width: 440px;">
             </div>
 
-            <div class="form-section register-width">
+            <div class="form-section register-width" style="position: relative;">
+                <a href="index.php" class="btn-back">&larr;</a>
                 <h2 class="form-title">Create Account</h2>
                 <p class="form-subtitle">Join the CCS Sit-in Monitoring System</p>
 
@@ -99,11 +94,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <?php endif; ?>
 
                 <form action="" method="POST" id="registerForm">
+                    <span class="form-section-label">Student Information</span>
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="idNumber">ID Number</label>
-                            <input type="text" id="idNumber" name="IDNum" placeholder="e.g. 2024-0001" pattern="\d{4}-\d{4}" title="Format: YYYY-NNNN" required value="<?php echo isset($_POST['IDNum']) ? htmlspecialchars($_POST['IDNum']) : ''; ?>">
-                            <small style="display: block; margin-top: 4px; color: #777; font-size: 11px; font-weight: 500;">Format: YYYY-NNNN</small>
+                            <input type="text" id="idNumber" name="IDNum" placeholder="e.g. 21411277" pattern="\d{8}" title="8 digit number" required value="<?php echo isset($_POST['IDNum']) ? htmlspecialchars($_POST['IDNum']) : ''; ?>">
+                            <small class="form-helper">Format: xxxxxxxx (e.g., 21411277)</small>
                         </div>
 
                         <div class="form-group">
@@ -120,7 +116,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <label for="middleName">Middle Name</label>
                             <input type="text" id="middleName" name="MName" placeholder="Optional" value="<?php echo isset($_POST['MName']) ? htmlspecialchars($_POST['MName']) : ''; ?>">
                         </div>
+                    </div>
 
+                    <span class="form-section-label">Academic Details</span>
+                    <div class="form-grid">
                         <div class="form-group">
                             <label for="level">Year Level</label>
                             <select id="level" name="level" required>
@@ -141,8 +140,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 <option value="BSIS" <?php echo (isset($_POST['course']) && $_POST['course'] == 'BSIS') ? 'selected' : ''; ?>>BS Information Systems</option>
                             </select>
                         </div>
+                    </div>
 
-                        <div class="form-group">
+                    <span class="form-section-label">Account Details</span>
+                    <div class="form-grid">
+                        <div class="form-group grid-full">
                             <label for="email">Email Address</label>
                             <input type="email" id="email" name="email" placeholder="student@university.edu" required value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
                         </div>
@@ -152,18 +154,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <input type="password" id="password" name="password" placeholder="Min. 8 characters" required>
                         </div>
 
-                        <div class="form-group grid-full">
-                            <label for="repeat_password">Repeat Password</label>
+                        <div class="form-group">
+                            <label for="repeat_password">Confirm Password</label>
                             <input type="password" id="repeat_password" name="repeat_password" placeholder="Confirm password" required>
-                        </div>
-
-                        <div class="form-group grid-full">
-                            <label for="address">Home Address</label>
-                            <textarea id="address" name="address" placeholder="St., Brgy, City, Province" required><?php echo isset($_POST['address']) ? htmlspecialchars($_POST['address']) : ''; ?></textarea>
                         </div>
                     </div>
 
-                    <button type="submit" class="btn-login">Register</button>
+                    <span class="form-section-label">Address</span>
+                    <div class="form-group">
+                        <label for="address">Home Address</label>
+                        <textarea id="address" name="address" placeholder="St., Brgy, City, Province" required><?php echo isset($_POST['address']) ? htmlspecialchars($_POST['address']) : ''; ?></textarea>
+                    </div>
+
+                    <button type="submit" class="btn-login">Create Account</button>
 
                     <p class="register-text">Already have an account? <a href="Login.php">Login</a></p>
                 </form>
@@ -173,7 +176,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 
     <footer class="footer">
-        &copy; 2024 College of Computer Studies
+        &copy; 2024 College of Computer Studies &mdash; University of Cebu
     </footer>
 
 </body>

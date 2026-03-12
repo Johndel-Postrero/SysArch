@@ -25,11 +25,14 @@ if (isset($_GET['logout'])) {
 
     <nav class="navbar">
         <div class="nav-container">
-            <a href="#" class="navbar-brand">College of Computer Studies Sit-in Monitoring System</a>
+            <a href="index.php" class="navbar-brand">
+                <img src="../../wwwroots/favIcon/ccsLogo.png" alt="CCS" class="brand-icon">
+                CCS Sit-in Monitoring System
+            </a>
             <ul class="navbar-links">
                 <li><a href="#" class="nav-active">Dashboard</a></li>
                 <li><a href="#">Profile</a></li>
-                <li><a href="?logout=1" style="color: #ffcdd2;">Logout</a></li>
+                <li><a href="?logout=1" style="color: #fca5a5;">Logout</a></li>
             </ul>
         </div>
     </nav>
@@ -45,15 +48,15 @@ if (isset($_GET['logout'])) {
                 </div>
             <?php endif; ?>
 
-            <h1 class="landing-text">Landing Page</h1>
-            <p class="user-welcome">Hello, <strong><?php echo htmlspecialchars($_SESSION['user_name']); ?></strong>! You are successfully logged in.</p>
+            <h1 class="landing-text">Welcome Back!</h1>
+            <p class="user-welcome">Hello, <strong><?php echo htmlspecialchars($_SESSION['user_name']); ?></strong>! You are successfully logged in to the CCS Sit-in Monitoring System.</p>
             
             <a href="?logout=1" class="btn-logout">Logout</a>
         </div>
     </div>
 
     <footer class="footer">
-        &copy; 2024 College of Computer Studies
+        &copy; 2024 College of Computer Studies &mdash; University of Cebu
     </footer>
 
 </body>
