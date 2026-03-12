@@ -92,7 +92,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <form action="" method="POST" id="loginForm">
                     <div class="form-group">
                         <label for="idNumber">ID Number</label>
-                        <input type="text" id="idNumber" name="idNumber" placeholder="e.g. 21411277" pattern="\d{8}" title="8 digit number" required value="<?php echo isset($_POST['idNumber']) ? htmlspecialchars($_POST['idNumber']) : ''; ?>">
+                        <input type="text" id="idNumber" name="idNumber" placeholder="e.g. 21411277" pattern="\d{8}" title="Must be exactly 8 digits" maxlength="8" required value="<?php echo isset($_POST['idNumber']) ? htmlspecialchars($_POST['idNumber']) : ''; ?>">
                         <small class="form-helper">Format: xxxxxxxx (e.g., 21411277)</small>
                     </div>
 
