@@ -3,7 +3,11 @@ session_start();
 require_once 'db_config.php';
 
 if (isset($_SESSION['user_id'])) {
-    header("Location: Landing.php");
+    if (isset($_SESSION['user_level']) && $_SESSION['user_level'] == 1) {
+        header("Location: AdminLanding.php");
+    } else {
+        header("Location: Landing.php");
+    }
     exit();
 }
 
@@ -26,9 +30,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($user && password_verify($password, $user['password'])) {
                 $_SESSION['user_id'] = $user['IDNum'];
                 $_SESSION['user_name'] = $user['FName'] . " " . $user['LName'];
+                $_SESSION['user_level'] = $user['level'];
                 
                 $_SESSION['login_success'] = "Welcome back, " . htmlspecialchars($user['FName']) . "!";
-                header("Location: Landing.php");
+                if ($user['level'] == 1) {
+                    header("Location: AdminLanding.php");
+                } else {
+                    header("Location: Landing.php");
+                }
                 exit();
             } else {
                 $message = "Invalid ID Number or Password.";
