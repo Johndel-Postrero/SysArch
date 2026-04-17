@@ -84,6 +84,12 @@ body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; 
             <i class="fas fa-tachometer-alt mr-3"></i> 
             <span class="sidebar-text">Dashboard</span>
         </a>
+
+        <!-- Student Management-->
+        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors" href="student.php">
+            <i class="fas fa-user-graduate mr-3"></i> 
+            <span class="sidebar-text">Students</span>
+        </a>
         
         <!-- Reservations (Highlighted) -->
         <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors" href="reservationad.php">
@@ -108,11 +114,11 @@ body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; 
             </div>
         </div>
         
-        <!-- Resources -->
+        <!-- Resources 
         <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors" href="resourcesad.php">
             <i class="fas fa-boxes mr-3"></i> 
             <span class="sidebar-text">Resources</span>
-        </a>
+        </a> -->
         
         <!-- Reports & Analytics -->
         <div class="dropdown group">
@@ -129,21 +135,16 @@ body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; 
                     <i class="fas fa-trophy mr-3"></i> Leaderboard
                 </a>
             </div>
-        </div>
-        
-        <!-- Student Management -->
-        <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors" href="student.php">
-            <i class="fas fa-user-graduate mr-3"></i> 
-            <span class="sidebar-text">Students</span>
-        </a>
-        
+        </div> 
+
         <!-- Communication -->
-        <div class="dropdown group">
+        <div class="dropdown group"> 
             <a class="flex items-center py-3 px-4 text-white hover:bg-blue-700 rounded-lg mx-2 transition-colors">
                 <i class="fas fa-comments mr-3"></i> 
                 <span class="sidebar-text">Communication</span>
                 <i class="fas fa-chevron-down ml-auto sidebar-text text-xs transform group-hover:rotate-180 transition-transform"></i>
             </a>
+            
             <div class="dropdown-content pl-2 mt-1">
                 <a href="Cannouncement.php" class="flex items-center py-2 px-4 text-white hover:bg-blue-600 rounded-lg mx-2 text-sm">
                     <i class="fas fa-bullhorn mr-3"></i> Announcements
@@ -155,7 +156,7 @@ body { font-family: "Poppins-Regular"; color: #333; font-size: 16px; margin: 0; 
                     <i class="fas fa-comment-dots mr-3"></i> Computer & Lab
                 </a>
             </div>
-        </div>
+        </div> 
     </nav>
 </div>
 </html>

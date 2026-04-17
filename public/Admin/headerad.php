@@ -291,7 +291,7 @@ $conn->close();
                 
                 <!--<a href="notifications.php" class="block p-3 text-center text-sm text-blue-500 hover:bg-gray-50 border-t">View All Notifications</a>-->
             </div>
-        </div>
+        </div> 
 
         <!-- Profile Dropdown -->
         <div class="relative">

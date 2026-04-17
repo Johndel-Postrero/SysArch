@@ -215,6 +215,7 @@ $conn->close();
 <header class="header flex items-center justify-between bg-white p-6">
     <h2 class="text-2xl font-semibold"><?php echo $pageTitle; ?></h2>
     <div class="flex items-center">
+
         <!-- Notification Bell -->
         <div class="relative mr-6">
             <div class="cursor-pointer" id="notificationBell">

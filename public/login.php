@@ -116,16 +116,29 @@ header("Expires: 0");
         #closeDialog:hover {
             background: #7952b3;
         }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            color: #0f3d73;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
-<body>
+<body style="background: radial-gradient(circle at center, #ffffff 0%, #e8e8e8 50%, #808080 100%); min-height: 100vh; margin: 0;">
 <dialog id="successDialog">
     <div class="modal-content">
         <p>Login Successful!</p>
         <button id="closeDialog">OK</button>
     </div>
 </dialog>
-<div class="wrapper" style="background-image: url('inc/computer.png');">
+<div class="wrapper" style="background: transparent;">
         <div class="inner">
             <div class="image-holder">
                 <div class="logo">
@@ -135,6 +148,7 @@ header("Expires: 0");
                 <img src="inc/graphs.svg" alt="graphics" style="width: 95%;">
             </div>
             <form action="login.php" method="post">
+                <a href="landingindex.php" class="back-link">← Back</a>
                 <h3>Sign In</h3>
                 <p>Welcome back! Please enter your details.</p>
                 <?php if ($error): ?>

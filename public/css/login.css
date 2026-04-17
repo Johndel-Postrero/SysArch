@@ -37,6 +37,7 @@
   
   .wrapper {
     min-height: 100vh;
+    background: transparent;
     background-size: cover;
     background-repeat: no-repeat;
     display: flex;
@@ -51,7 +52,7 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.3); 
+      background: transparent; 
       z-index: 1;
   }
   
