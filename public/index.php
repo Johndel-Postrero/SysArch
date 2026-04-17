@@ -9,7 +9,7 @@ session_start();
 
 // Check if the user is logged in
 if (!isset($_SESSION['login_user'])) {
-    header("Location: login.php");
+    header("Location: http://172.19.131.167/CCS-SITIN/login.php");
     exit();
 }
 

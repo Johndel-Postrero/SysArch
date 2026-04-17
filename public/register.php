@@ -156,19 +156,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         #closeDialog:hover {
             background: #7952b3;
         }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            color: #0f3d73;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
         input#lastname.form-control {
     background-color: transparent !important;
 }
     </style>
 </head>
-<body>
+<body style="background: radial-gradient(circle at center, #ffffff 0%, #e8e8e8 50%, #808080 100%); min-height: 100vh; margin: 0;">
 <dialog id="successDialog">
     <div class="modal-content">
         <p>Registration Successful!</p>
         <button id="closeDialog">OK</button>
     </div>
 </dialog>
-    <div class="wrapper" style="background-image: url('inc/computer.png');">
+    <div class="wrapper" style="background: transparent;">
         <div class="inner">
             <div class="image-holder">
                 <div class="logo">
@@ -178,6 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <img src="inc/graphs.svg" alt="graphics" style="width: 95%;">
             </div>
             <form action="register.php" method="post">
+                <a href="landingindex.php" class="back-link">← Back</a>
                 <h3>Sign Up</h3>
                 <div class="form-wrapper">
                     <input type="number" name="idno" id="idno" required placeholder="ID Number" class="form-control <?php echo $error ? 'error' : ''; ?>" style="margin-bottom: <?php echo $error ? '10px' : '25px'; ?>;" value="<?php echo isset($_POST['idno']) ? htmlspecialchars($_POST['idno']) : ''; ?>">

@@ -20,12 +20,39 @@ $query = "SELECT
             u.lastname, 
             u.profile_picture,
             u.course,
-            COALESCE(SUM(r.points), 0) AS total_points
+            COALESCE(rp.reward_points, 0) AS reward_points,
+            COALESCE(st.total_hours, 0) AS total_hours,
+            COALESCE(st.tasks_completed, 0) AS tasks_completed,
+            (
+                (0.6 * COALESCE(rp.reward_points, 0)) +
+                (0.2 * COALESCE(st.total_hours, 0)) +
+                (0.2 * COALESCE(st.tasks_completed, 0))
+            ) AS total_score
           FROM users u
-          LEFT JOIN rewards r ON u.idno = r.idno
+          LEFT JOIN (
+              SELECT idno, COALESCE(SUM(points), 0) AS reward_points
+              FROM rewards
+              GROUP BY idno
+          ) rp ON u.idno = rp.idno
+          LEFT JOIN (
+              SELECT
+                  idno,
+                  COALESCE(
+                      SUM(
+                          CASE
+                              WHEN time_out IS NOT NULL AND time_out > time_in
+                                  THEN TIME_TO_SEC(TIMEDIFF(time_out, time_in)) / 3600
+                              ELSE 0
+                          END
+                      ),
+                      0
+                  ) AS total_hours,
+                  COUNT(CASE WHEN time_out IS NOT NULL THEN 1 END) AS tasks_completed
+              FROM sitin
+              GROUP BY idno
+          ) st ON u.idno = st.idno
           WHERE u.role = 'student'
-          GROUP BY u.idno
-          ORDER BY total_points DESC
+          ORDER BY total_score DESC
           LIMIT 10";
 
 $result = $conn->query($query);
@@ -551,7 +578,7 @@ function getInitials($firstname, $lastname) {
                 <div class="leaderboard-container p-6">
                     <div class="leaderboard-header">
                         <h1 class="leaderboard-title">Lab Champions</h1>
-                        <p class="leaderboard-subtitle">Top performers based on points earned</p>
+                        <p class="leaderboard-subtitle">Top performers by weighted score (Rewards 60% • Hours 20% • Tasks 20%)</p>
                     </div>
                     
                     <?php if (!empty($topUsers)): ?>
@@ -621,19 +648,19 @@ function getInitials($firstname, $lastname) {
                                 <div class="podium-name-container">
                                     <?php if (isset($topUsers[1])): ?>
                                         <div class="podium-name"><?php echo htmlspecialchars($topUsers[1]['firstname'] . ' ' . $topUsers[1]['lastname']); ?></div>
-                                        <div class="podium-points"><?php echo htmlspecialchars($topUsers[1]['total_points']); ?> points</div>
+                                        <div class="podium-points"><?php echo number_format((float)$topUsers[1]['total_score'], 2); ?> score</div>
                                     <?php endif; ?>
                                 </div>
                                 <div class="podium-name-container">
                                     <?php if (isset($topUsers[0])): ?>
                                         <div class="podium-name"><?php echo htmlspecialchars($topUsers[0]['firstname'] . ' ' . $topUsers[0]['lastname']); ?></div>
-                                        <div class="podium-points"><?php echo htmlspecialchars($topUsers[0]['total_points']); ?> points</div>
+                                        <div class="podium-points"><?php echo number_format((float)$topUsers[0]['total_score'], 2); ?> score</div>
                                     <?php endif; ?>
                                 </div>
                                 <div class="podium-name-container">
                                     <?php if (isset($topUsers[2])): ?>
                                         <div class="podium-name"><?php echo htmlspecialchars($topUsers[2]['firstname'] . ' ' . $topUsers[2]['lastname']); ?></div>
-                                        <div class="podium-points"><?php echo htmlspecialchars($topUsers[2]['total_points']); ?> points</div>
+                                        <div class="podium-points"><?php echo number_format((float)$topUsers[2]['total_score'], 2); ?> score</div>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -642,7 +669,7 @@ function getInitials($firstname, $lastname) {
                         <div class="leaderboard-list">
                             <?php 
                             // Find max points for progress bars
-                            $maxPoints = !empty($topUsers) ? $topUsers[0]['total_points'] : 1;
+                            $maxPoints = !empty($topUsers) ? max((float)$topUsers[0]['total_score'], 1) : 1;
                             ?>
                             
                             <?php foreach ($topUsers as $index => $user): ?>
@@ -662,10 +689,10 @@ function getInitials($firstname, $lastname) {
                                             <div class="user-name"><?php echo htmlspecialchars($user['firstname'] . ' ' . $user['lastname']); ?></div>
                                             <div class="user-course"><?php echo htmlspecialchars($user['course']); ?></div>
                                             <div class="progress-bar">
-                                                <div class="progress-fill" style="width: <?php echo ($user['total_points'] / $maxPoints) * 100; ?>%"></div>
+                                                <div class="progress-fill" style="width: <?php echo (((float)$user['total_score'] / $maxPoints) * 100); ?>%"></div>
                                             </div>
                                         </div>
-                                        <div class="points-earned"><?php echo htmlspecialchars($user['total_points']); ?> points</div>
+                                        <div class="points-earned"><?php echo number_format((float)$user['total_score'], 2); ?> score</div>
                                         <?php if ($index < 6): ?>
                                             <div class="badge">Top Performer</div>
                                         <?php endif; ?>

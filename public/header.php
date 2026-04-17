@@ -268,6 +268,7 @@ $conn->close();
                 <?php endif; ?>
             </div>
             
+            
             <!-- Notification Dropdown -->
             <div id="notificationDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg overflow-hidden">
                 <div class="flex justify-between items-center p-4 border-b">
@@ -302,8 +303,9 @@ $conn->close();
                     <?php endif; ?>
                 </div>
             </div>
+            
         </div>
-
+        
         <!-- Profile Dropdown -->
         <div class="relative">
             <div class="flex items-center cursor-pointer" id="profileDropdownBtn">
