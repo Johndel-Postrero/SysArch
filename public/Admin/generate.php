@@ -45,6 +45,7 @@ $conn->close();
         };
     </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="../css/student-dark.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
@@ -113,7 +114,7 @@ $conn->close();
         }
     </style>
 </head>
-<body class="bg-gray-100 font-sans antialiased">
+<body class="bg-[#0D0B1A] font-sans antialiased text-white">
     <div class="flex h-screen">
         <!-- Include Sidebar -->
         <?php include 'sidebarad.php'; ?>
@@ -227,35 +228,36 @@ $conn->close();
                     </div>
 
                     <!-- Table -->
-                    <div class="overflow-x-auto">
-                        <table id="sitinTable" class="min-w-full bg-white shadow-md rounded-lg">
+                  <div class="content-card">
+                    <div class="dark-table-wrap">
+                        <table id="sitinTable" class="dark-table">
                             <thead>
-                                <tr class="bg-[#002044] text-white">
-                                    <th class="py-4 px-4 text-center">ID NUMBER</th>
-                                    <th class="py-4 px-4 text-center">NAME</th>
-                                    <th class="py-4 px-4 text-center">PURPOSE</th>
-                                    <th class="py-4 px-4 text-center">LAB</th>
-                                    <th class="py-4 px-4 text-center">LOGIN</th>
-                                    <th class="py-4 px-4 text-center">LOGOUT</th>
-                                    <th class="py-4 px-4 text-center">DATE</th>
+                                <tr>
+                                    <th>ID NUMBER</th>
+                                    <th>NAME</th>
+                                    <th>PURPOSE</th>
+                                    <th>LAB</th>
+                                    <th>LOGIN</th>
+                                    <th>LOGOUT</th>
+                                    <th>DATE</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (!empty($sitinData)): ?>
                                     <?php foreach ($sitinData as $index => $sitin): ?>
-                                        <tr class="<?php echo ($index % 2 === 0) ? 'bg-gray-100' : 'bg-gray-200'; ?>">
-                                            <td class="py-4 px-4 font-semibold text-center"><?php echo htmlspecialchars($sitin['idno']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['lastname'] . ', ' . $sitin['firstname']. ' '. $sitin['middlename']. '.'); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['purpose']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['lab_number']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('h:i:s A', strtotime($sitin['time_in']))); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('h:i:s A', strtotime($sitin['time_out']))); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('Y-m-d', strtotime($sitin['created_at']))); ?></td>
+                                        <tr>
+                                            <td><span class="id-cell"><?php echo htmlspecialchars($sitin['idno']); ?></span></td>
+                                            <td><span class="name-text"><?php echo htmlspecialchars($sitin['lastname'] . ', ' . $sitin['firstname']. ' '. $sitin['middlename']. '.'); ?></span></td>
+                                            <td><?php echo htmlspecialchars($sitin['purpose']); ?></td>
+                                            <td><span class="lab-badge"><?php echo htmlspecialchars($sitin['lab_number']); ?></span></td>
+                                            <td><?php echo htmlspecialchars(date('h:i:s A', strtotime($sitin['time_in']))); ?></td>
+                                            <td><?php echo htmlspecialchars(date('h:i:s A', strtotime($sitin['time_out']))); ?></td>
+                                            <td><?php echo htmlspecialchars(date('Y-m-d', strtotime($sitin['created_at']))); ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr>
-                                        <td colspan="7" class="py-4 px-4 text-center">No data found</td>
+                                    <tr class="not-record">
+                                        <td colspan="7" style="text-align:center;padding:60px 20px;color:#9A8FB0;">No data found</td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -267,6 +269,7 @@ $conn->close();
                         <div class="text-gray-600" id="paginationInfo"></div>
                         <div class="flex space-x-2" id="paginationControls"></div>
                     </div>
+                  </div><!-- end content-card -->
                 </div>
             </div>      
         </div>
@@ -385,7 +388,7 @@ function updatePaginationControls(totalVisible, showAll) {
     const paginationInfo = document.getElementById('paginationInfo');
     const paginationControls = document.getElementById('paginationControls');
     
-    if (entriesPerPage === "all" || showAll) {
+    if (entriesPerPage === "all" || showAll || totalPages <= 1) {
         // Show all entries - hide pagination controls
         paginationInfo.textContent = `Showing all ${totalVisible} entries`;
         paginationControls.innerHTML = '';

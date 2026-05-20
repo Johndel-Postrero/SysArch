@@ -1,5 +1,6 @@
 <?php
 session_start();
+date_default_timezone_set('Asia/Manila');
 require __DIR__ . '/../../config/db.php';
 
 header('Content-Type: application/json');
@@ -46,6 +47,83 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reservation_id']) && i
         // Send notification to student
         $studentMessage = "Your reservation for Lab " . $reservation['lab_number'] . ", PC " . $reservation['pc_number'] . 
                          " on " . $reservation['reservation_date'] . " has been " . $status;
+        
+        // AUTO TIME-IN LOGIC
+        // If reservation is approved, and it is for today and start time has already passed
+        if ($status === 'approved') {
+            $currentDate = date('Y-m-d');
+            $currentTime = date('H:i:s');
+            
+            if ($reservation['reservation_date'] === $currentDate && $reservation['time_in'] <= $currentTime) {
+                // Verify student is not currently sitting in
+                $checkActiveSitin = $conn->prepare("
+                    SELECT sitin_id FROM sitin 
+                    WHERE idno = ? AND lab_number = ? AND sitin_date = ? AND time_out IS NULL
+                ");
+                if ($checkActiveSitin) {
+                    $checkActiveSitin->bind_param("iis", 
+                        $reservation['idno'],
+                        $reservation['lab_number'],
+                        $reservation['reservation_date']
+                    );
+                    $checkActiveSitin->execute();
+                    $activeResult = $checkActiveSitin->get_result();
+                    $hasActive = ($activeResult->num_rows > 0);
+                    $checkActiveSitin->close();
+                    
+                    // Verify PC in that lab is not occupied
+                    $checkPcOccupied = $conn->prepare("
+                        SELECT sitin_id FROM sitin 
+                        WHERE lab_number = ? AND pc_number = ? AND time_out IS NULL
+                    ");
+                    $hasOccupied = false;
+                    if ($checkPcOccupied) {
+                        $checkPcOccupied->bind_param("ii", 
+                            $reservation['lab_number'],
+                            $reservation['pc_number']
+                        );
+                        $checkPcOccupied->execute();
+                        $occupiedResult = $checkPcOccupied->get_result();
+                        $hasOccupied = ($occupiedResult->num_rows > 0);
+                        $checkPcOccupied->close();
+                    }
+                    
+                    if (!$hasActive && !$hasOccupied) {
+                        // Record sit-in
+                        $insertSitin = $conn->prepare("
+                            INSERT INTO sitin (idno, lab_number, pc_number, sitin_date, time_in, purpose) 
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        ");
+                        if ($insertSitin) {
+                            $insertSitin->bind_param("iiisss", 
+                                $reservation['idno'],
+                                $reservation['lab_number'],
+                                $reservation['pc_number'],
+                                $reservation['reservation_date'],
+                                $reservation['time_in'],
+                                $reservation['purpose']
+                            );
+                            $insertSitin->execute();
+                            $insertSitin->close();
+                        }
+                        
+                        // Update reservation status to sit-inned
+                        $updateTimeInStatus = $conn->prepare("
+                            UPDATE reservations SET time_in_status = 'sit-inned' 
+                            WHERE reservation_id = ?
+                        ");
+                        if ($updateTimeInStatus) {
+                            $updateTimeInStatus->bind_param("i", $reservationId);
+                            $updateTimeInStatus->execute();
+                            $updateTimeInStatus->close();
+                        }
+                        
+                        $studentMessage = "Your reservation for Lab " . $reservation['lab_number'] . ", PC " . $reservation['pc_number'] . 
+                                         " on " . $reservation['reservation_date'] . " has been approved and automatically marked as sit-inned. Please proceed to the lab.";
+                    }
+                }
+            }
+        }
         
         // Get user ID from idno
         $userStmt = $conn->prepare("SELECT user_id FROM users WHERE idno = ?");

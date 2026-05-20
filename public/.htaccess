@@ -1,3 +1,5 @@
+DirectoryIndex landingindex.php index.php
+
 <IfModule mod_rewrite.c>
     Options -Multiviews
     RewriteEngine On

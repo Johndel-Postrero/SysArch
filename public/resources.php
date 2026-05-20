@@ -65,171 +65,66 @@ function formatFileSize($bytes) {
 }
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Student Resources</title>
-    <script>
-        window.onpageshow = function(event) {
-            if (event.persisted) {
-                window.location.reload();
-            }
-        };
-    </script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resources – CCS Sit-In</title>
+    <script>window.onpageshow=function(e){if(e.persisted)window.location.reload();};</script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/print-js/1.6.0/print.min.js"></script>
+    <link rel="stylesheet" href="css/student-dark.css">
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            font-family: "Poppins-Regular";
-            color: #333;
-            font-size: 16px;
-            margin: 0;
-        }
-        header {
-            z-index: 1;
-        }
-        .sidebar {
-            width: 5rem;
-            transition: all 0.3s ease-in-out;
-        }
-        .sidebar:hover {
-            width: 16rem;
-        }
-        .sidebar:hover .sidebar-text {
-            display: inline;
-        }
-        .sidebar-text {
-            display: none;
-        }
-        .sidebar a {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-        }
-        .sidebar:hover a {
-            justify-content: flex-start;
-        }
-        .sidebar i {
-            font-size: 1.5rem;
-        }
-        .main-content {
-            margin-left: 5rem;
-            transition: margin-left 0.3s ease-in-out;
-        }
-        .sidebar:hover + .main-content {
-            margin-left: 16rem;
-        }
-        .file-icon {
-            font-size: 2rem;
-            margin-right: 1rem;
-        }
-        .folder-icon { color: #f39c12; }
-        .pdf-icon { color: #e74c3c; }
-        .doc-icon { color: #3498db; }
-        .video-icon { color: #9b59b6; }
-        .file-icon { color: #7f8c8d; }
-        .breadcrumb-item:after {
-            content: '/';
-            margin: 0 8px;
-            color: #95a5a6;
-        }
-        .breadcrumb-item:last-child:after {
-            content: '';
-        }
-        .resource-card {
-            position: relative;
-            z-index: 1;
-        }
-        .resource-card.menu-active {
-            z-index: 50;
-        }
-        .resource-menu-btn {
-            position: relative;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 100;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            overflow-y: auto;
-        }
-        .modal-content {
-            background-color: white;
-            margin: 10% auto;
-            padding: 20px;
-            border-radius: 8px;
-            width: 400px;
-            max-width: 90%;
-        }
-        .resource-menu {
-            position: absolute;
-            top: calc(100% + 5px);
-            right: 0;
-            background-color: white;
-            min-width: 160px;
-            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-            z-index: 100;
-            border-radius: 8px;
-            display: none;
-            padding: 4px 0;
-        }
-        .resource-menu a {
-            padding: 8px 16px;
-            display: block;
-            text-decoration: none;
-            color: #333;
-        }
-        .resource-menu a:hover {
-            background-color: #f1f1f1;
-        }
-        .show { display: block; }
-        .list-view .resource-card {
-            flex-direction: row;
-            align-items: center;
-        }
-        .list-view .resource-icon {
-            margin-right: 16px;
-        }
-        .list-view .resource-details {
-            flex: 1;
-        }
-        .list-view .resource-actions {
-            margin-left: auto;
-        }
-        .preview-modal {
-            max-width: 90%;
-            width: 800px;
-        }
+        .folder-icon{color:#f59e0b;} .pdf-icon{color:#ef4444;} .doc-icon{color:#3b82f6;} .video-icon{color:#8b5cf6;} .image-icon{color:#10b981;}
+        .resource-card{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:16px;cursor:pointer;transition:all 0.3s;position:relative;z-index:1;}
+        .resource-card:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(139,63,217,0.15);border-color:rgba(139,63,217,0.35);}
+        .resource-card.menu-active{z-index:50;}
+        .resource-menu{position:absolute;top:calc(100% + 5px);right:0;background:#161326;border:1px solid rgba(139,63,217,0.3);min-width:160px;box-shadow:0 20px 40px rgba(0,0,0,0.4);z-index:100;border-radius:12px;display:none;padding:6px 0;}
+        .resource-menu a{padding:9px 16px;display:block;text-decoration:none;color:#D1C7E0;font-size:13px;transition:background 0.2s;}
+        .resource-menu a:hover{background:rgba(139,63,217,0.1);color:#fff;}
+        .show{display:block;}
+        .modal{display:none;position:fixed;z-index:2000;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);overflow-y:auto;}
+        .modal-content{background:#0f0d1f;border:1px solid rgba(139,63,217,0.35);margin:5% auto;padding:24px;border-radius:20px;width:800px;max-width:92%;box-shadow:0 30px 60px rgba(0,0,0,0.6);}
+        .preview-modal{max-width:92%;width:860px;}
+        .modal-content h3{font-family:var(--font-h);font-size:14px;color:#fff;letter-spacing:1px;}
+        #previewContent img,#previewContent video{border-radius:10px;}
+        .res-search{background:rgba(255,255,255,0.05);border:1px solid var(--border);color:#fff;padding:9px 16px 9px 36px;border-radius:10px;font-size:13px;outline:none;width:240px;transition:all 0.3s;font-family:var(--font-b);}
+        .res-search:focus{border-color:var(--purple-glow);box-shadow:0 0 12px rgba(139,63,217,0.2);}
+        .res-search::placeholder{color:var(--text-dim);}
+        .ctrl-btn{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-dim);padding:8px 14px;border-radius:10px;font-size:13px;font-family:var(--font-b);cursor:pointer;transition:all 0.3s;}
+        .ctrl-btn:hover{border-color:var(--purple-glow);color:#fff;}
+        .ctrl-btn.active{background:var(--purple-glow);border-color:var(--purple-glow);color:#fff;}
+        .drop-menu{display:none;position:absolute;top:calc(100% + 8px);right:0;background:#161326;border:1px solid rgba(139,63,217,0.3);border-radius:12px;overflow:hidden;min-width:160px;box-shadow:0 20px 40px rgba(0,0,0,0.4);z-index:100;}
+        .drop-menu a{display:block;padding:10px 16px;color:#D1C7E0;font-size:13px;text-decoration:none;transition:background 0.2s;}
+        .drop-menu a:hover{background:rgba(139,63,217,0.1);color:#fff;}
+        .breadcrumb-item:after{content:'/';margin:0 8px;color:var(--text-dim);}
+        .breadcrumb-item:last-child:after{content:'';}
+        .file-icon{font-size:2rem;margin-right:1rem;}
+        .list-view .resource-card{display:flex;flex-direction:row;align-items:center;}
+        .list-view .resource-icon{margin-right:16px;}
+        .list-view .resource-details{flex:1;}
+        .modal-icon-btn{background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-dim);width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.3s;}
+        .modal-icon-btn:hover{border-color:var(--purple-glow);color:#fff;}
     </style>
 </head>
-<body class="bg-gray-100 font-sans antialiased">
-    <div class="flex h-screen">
-        <!-- Include Sidebar -->
-        <?php include 'sidebar.php'; ?>
-
-        <!-- Main Content -->
-        <div class="main-content flex-1 flex flex-col">
-            <!-- Include Header -->
-            <?php include 'header.php'; ?>
+<body>
+    <canvas id="star-canvas"></canvas>
+    <?php include 'sidebar.php'; ?>
+    <div class="main-wrapper">
+        <?php include 'header.php'; ?>
             
             <div class="flex-1 overflow-auto">
                 <div class="p-6 max-w-5xl mx-auto w-full">
                     <!-- Breadcrumbs -->
                     <?php if (!empty($breadcrumbs)): ?>
-                        <div class="flex items-center text-sm text-gray-600 mb-4 gap-2">
-                            <a href="resources.php" class="text-violet-600 hover:text-violet-800">
-                                <i class="fas fa-home"></i>
-                            </a>
+                        <div style="display:flex;align-items:center;font-size:13px;color:var(--text-dim);margin-bottom:16px;gap:4px;">
+                            <a href="resources.php" style="color:var(--purple-light);text-decoration:none;"><i class="fas fa-home"></i></a>
                             <?php foreach ($breadcrumbs as $crumb): ?>
                                 <span class="breadcrumb-item">
                                     <a href="resources.php?folder=<?php echo $crumb['resource_id']; ?>" 
-                                       class="text-violet-600 hover:text-violet-800">
+                                       style="color:var(--purple-light);text-decoration:none;">
                                         <?php echo htmlspecialchars($crumb['title']); ?>
                                     </a>
                                 </span>
@@ -237,60 +132,35 @@ function formatFileSize($bytes) {
                         </div>
                     <?php endif; ?>
 
-                    <!-- Action Buttons (Simplified for students) -->
-                    <div class="flex justify-between items-center mb-6">
-                        <!-- Search -->
-                        <div class="relative flex-1 mr-4">
-                            <input class="w-full py-2 pl-10 pr-4 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500" 
-                                   placeholder="Search resources..." type="text" id="searchInput"/>
-                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <!-- Controls -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:12px;flex-wrap:wrap;">
+                        <div style="position:relative;">
+                            <i class="fas fa-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:12px;"></i>
+                            <input class="res-search" placeholder="Search resources…" type="text" id="searchInput"/>
                         </div>
-                        
-                        <!-- View Toggle -->
-                        <div class="flex space-x-2 mr-4">
-                            <button id="gridViewBtn" class="p-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300">
-                                <i class="fas fa-th-large"></i>
-                            </button>
-                            <button id="listViewBtn" class="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-300">
-                                <i class="fas fa-list"></i>
-                            </button>
-                        </div>
-                        
-                        <!-- Sort and Filter (Only these remain) -->
-                        <div class="flex space-x-3">
-                            <!-- Sort Dropdown -->
-                            <div class="relative">
-                                <button id="sortButton" class="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
-                                    </svg>
-                                    <span>Sort</span>
-                                </button>
-                                <div id="sortDropdown" class="hidden absolute right-0 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 w-48 z-20">
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="name-asc"><i class="fas fa-sort-alpha-down mr-2"></i>Name A-Z</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="name-desc"><i class="fas fa-sort-alpha-up mr-2"></i>Name Z-A</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="date-newest"><i class="fas fa-arrow-down mr-2"></i>Newest</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="date-oldest"><i class="fas fa-arrow-up mr-2"></i>Oldest</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="size-largest"><i class="fas fa-sort-amount-down mr-2"></i>Largest</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="size-smallest"><i class="fas fa-sort-amount-up mr-2"></i>Smallest</a>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <button id="gridViewBtn" class="ctrl-btn active"><i class="fas fa-th-large"></i></button>
+                            <button id="listViewBtn" class="ctrl-btn"><i class="fas fa-list"></i></button>
+                            <div style="position:relative;">
+                                <button id="sortButton" class="ctrl-btn"><i class="fas fa-sort"></i> Sort</button>
+                                <div id="sortDropdown" class="drop-menu">
+                                    <a href="#" data-sort="name-asc"><i class="fas fa-sort-alpha-down mr-2"></i>Name A-Z</a>
+                                    <a href="#" data-sort="name-desc"><i class="fas fa-sort-alpha-up mr-2"></i>Name Z-A</a>
+                                    <a href="#" data-sort="date-newest"><i class="fas fa-arrow-down mr-2"></i>Newest</a>
+                                    <a href="#" data-sort="date-oldest"><i class="fas fa-arrow-up mr-2"></i>Oldest</a>
+                                    <a href="#" data-sort="size-largest"><i class="fas fa-sort-amount-down mr-2"></i>Largest</a>
+                                    <a href="#" data-sort="size-smallest"><i class="fas fa-sort-amount-up mr-2"></i>Smallest</a>
                                 </div>
                             </div>
-                            
-                            <!-- Filter Dropdown -->
-                            <div class="relative">
-                                <button id="filterButton" class="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
-                                    </svg>
-                                    <span>Filter</span>
-                                </button>
-                                <div id="filterDropdown" class="hidden absolute right-0 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 w-48 z-20">
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-filter="all"><i class="fas fa-layer-group mr-2"></i>All Items</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-filter="folder"><i class="fas fa-folder mr-2"></i>Folders</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-filter="pdf"><i class="fas fa-file-pdf mr-2"></i>PDFs</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-filter="doc"><i class="fas fa-file-word mr-2"></i>Documents</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-filter="video"><i class="fas fa-file-video mr-2"></i>Videos</a>
-                                    <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-filter="other"><i class="fas fa-file-alt mr-2"></i>Other Files</a>
+                            <div style="position:relative;">
+                                <button id="filterButton" class="ctrl-btn"><i class="fas fa-filter"></i> Filter</button>
+                                <div id="filterDropdown" class="drop-menu">
+                                    <a href="#" data-filter="all"><i class="fas fa-layer-group mr-2"></i>All Items</a>
+                                    <a href="#" data-filter="folder"><i class="fas fa-folder mr-2"></i>Folders</a>
+                                    <a href="#" data-filter="pdf"><i class="fas fa-file-pdf mr-2"></i>PDFs</a>
+                                    <a href="#" data-filter="doc"><i class="fas fa-file-word mr-2"></i>Documents</a>
+                                    <a href="#" data-filter="video"><i class="fas fa-file-video mr-2"></i>Videos</a>
+                                    <a href="#" data-filter="other"><i class="fas fa-file-alt mr-2"></i>Other Files</a>
                                 </div>
                             </div>
                         </div>
@@ -336,7 +206,7 @@ function formatFileSize($bytes) {
                                 }
                                 ?>
                                 
-                                <div class="resource-card bg-white rounded-lg shadow p-4 relative" 
+                                <div class="resource-card" 
                                      data-file-type="<?php echo $file_type; ?>"
                                      data-name="<?php echo htmlspecialchars(strtolower($row['title'])); ?>"
                                      data-date="<?php echo strtotime($row['uploaded_at']); ?>"
@@ -350,14 +220,14 @@ function formatFileSize($bytes) {
                                         </div>
                                         <div class="ml-3 flex-1 flex flex-col h-full resource-details">
                                             <div class="flex-1">
-                                                <h3 class="font-bold text-lg text-gray-800"><?php echo htmlspecialchars($row['title']); ?></h3>
+                                                <h3 style="font-weight:700;font-size:14px;color:#fff;"><?php echo htmlspecialchars($row['title']); ?></h3>
                                             </div>
                                             
-                                            <div class="mt-3 text-xs text-gray-500">
-                                                <div class="flex items-center">
+                                            <div style="margin-top:10px;font-size:12px;color:var(--text-dim);">
+                                                <div style="display:flex;align-items:center;gap:6px;">
                                                     <span><?php echo date("M j, Y", strtotime($row['uploaded_at'])); ?></span>
                                                     <?php if (!$is_folder): ?>
-                                                        <span class="mx-2">•</span>
+                                                        <span>·</span>
                                                         <span><?php echo formatFileSize($row['file_size']); ?></span>
                                                     <?php endif; ?>
                                                 </div>
@@ -382,10 +252,9 @@ function formatFileSize($bytes) {
                                 </div>
                             <?php endwhile; ?>
                         <?php else: ?>
-                            <div class="bg-white rounded-lg shadow p-8 text-center col-span-full">
-                                <i class="fas fa-folder-open text-4xl text-gray-400 mb-4"></i>
-                                <h3 class="text-xl font-semibold text-gray-600">This folder is empty</h3>
-                                <p class="text-gray-500">No resources found in this location</p>
+                            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:50px 20px;text-align:center;grid-column:1/-1;">
+                                <i class="fas fa-folder-open" style="font-size:36px;color:var(--text-dim);opacity:0.4;display:block;margin-bottom:12px;"></i>
+                                <p style="font-size:15px;font-weight:600;color:var(--text-dim);">This folder is empty</p>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -397,25 +266,19 @@ function formatFileSize($bytes) {
     <!-- Preview Modal -->
     <div id="previewModal" class="modal">
         <div class="modal-content preview-modal">
-            <div class="flex justify-between items-center mb-4">
-                <h3 id="previewTitle" class="text-lg font-semibold"></h3>
-                <div>
-                    <button id="printPreview" class="text-gray-500 hover:text-gray-700 mr-3">
-                        <i class="fas fa-print"></i>
-                    </button>
-                    <button id="downloadPreview" class="text-gray-500 hover:text-gray-700 mr-3">
-                        <i class="fas fa-download"></i>
-                    </button>
-                    <button id="closePreviewModal" class="text-gray-500 hover:text-gray-700">
-                        <i class="fas fa-times"></i>
-                    </button>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+                <h3 id="previewTitle"></h3>
+                <div style="display:flex;gap:8px;">
+                    <button id="printPreview" class="modal-icon-btn"><i class="fas fa-print"></i></button>
+                    <button id="downloadPreview" class="modal-icon-btn"><i class="fas fa-download"></i></button>
+                    <button id="closePreviewModal" class="modal-icon-btn"><i class="fas fa-times"></i></button>
                 </div>
             </div>
-            <div id="previewContent" class="flex justify-center items-center min-h-[400px]">
-                <!-- Preview content will be loaded here -->
+            <div id="previewContent" style="display:flex;justify-content:center;align-items:center;min-height:400px;">
             </div>
         </div>
     </div>
+    <script>(function(){const c=document.getElementById('star-canvas'),ctx=c.getContext('2d');let W,H,st=[];function r(){W=c.width=window.innerWidth;H=c.height=window.innerHeight;}window.addEventListener('resize',r);r();for(let i=0;i<120;i++)st.push({x:Math.random()*9999,y:Math.random()*9999,r:Math.random()*1.2+0.3,a:Math.random(),da:(Math.random()*0.003+0.001)*(Math.random()<.5?1:-1)});function d(){ctx.clearRect(0,0,W,H);st.forEach(s=>{s.a+=s.da;if(s.a<=0||s.a>=1)s.da*=-1;ctx.beginPath();ctx.arc(s.x%W,s.y%H,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(200,180,255,${s.a.toFixed(2)})`;ctx.fill();});requestAnimationFrame(d);}d();})();</script>
 
     <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -436,26 +299,25 @@ function formatFileSize($bytes) {
         const printPreview = document.getElementById('printPreview');
         const downloadPreview = document.getElementById('downloadPreview');
 
-        // Toggle dropdown menus
         sortButton.addEventListener('click', function (e) {
             e.stopPropagation();
-            sortDropdown.classList.toggle('hidden');
-            filterDropdown.classList.add('hidden');
+            sortDropdown.style.display = sortDropdown.style.display === 'block' ? 'none' : 'block';
+            filterDropdown.style.display = 'none';
         });
 
         filterButton.addEventListener('click', function (e) {
             e.stopPropagation();
-            filterDropdown.classList.toggle('hidden');
-            sortDropdown.classList.add('hidden');
+            filterDropdown.style.display = filterDropdown.style.display === 'block' ? 'none' : 'block';
+            sortDropdown.style.display = 'none';
         });
 
         // Close dropdowns when clicking outside
         document.addEventListener('click', function (e) {
             if (!sortButton.contains(e.target) && !sortDropdown.contains(e.target)) {
-                sortDropdown.classList.add('hidden');
+                sortDropdown.style.display = 'none';
             }
             if (!filterButton.contains(e.target) && !filterDropdown.contains(e.target)) {
-                filterDropdown.classList.add('hidden');
+                filterDropdown.style.display = 'none';
             }
         });
 
@@ -478,7 +340,7 @@ function formatFileSize($bytes) {
         sortDropdown.querySelectorAll('a').forEach(option => {
             option.addEventListener('click', function (e) {
                 e.preventDefault();
-                sortDropdown.classList.add('hidden');
+                sortDropdown.style.display = 'none';
                 
                 const sortOption = this.getAttribute('data-sort');
                 
@@ -517,7 +379,7 @@ function formatFileSize($bytes) {
         filterDropdown.querySelectorAll('a').forEach(option => {
             option.addEventListener('click', function (e) {
                 e.preventDefault();
-                filterDropdown.classList.add('hidden');
+                filterDropdown.style.display = 'none';
                 
                 const filterType = this.getAttribute('data-filter');
                 
@@ -536,19 +398,15 @@ function formatFileSize($bytes) {
         gridViewBtn.addEventListener('click', function() {
             resourcesContainer.classList.remove('list-view');
             resourcesContainer.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4';
-            gridViewBtn.classList.remove('bg-gray-100', 'text-gray-500');
-            gridViewBtn.classList.add('bg-gray-200', 'text-gray-700');
-            listViewBtn.classList.remove('bg-gray-200', 'text-gray-700');
-            listViewBtn.classList.add('bg-gray-100', 'text-gray-500');
+            gridViewBtn.classList.add('active');
+            listViewBtn.classList.remove('active');
         });
 
         listViewBtn.addEventListener('click', function() {
             resourcesContainer.classList.add('list-view');
             resourcesContainer.className = 'grid grid-cols-1 gap-2 list-view';
-            listViewBtn.classList.remove('bg-gray-100', 'text-gray-500');
-            listViewBtn.classList.add('bg-gray-200', 'text-gray-700');
-            gridViewBtn.classList.remove('bg-gray-200', 'text-gray-700');
-            gridViewBtn.classList.add('bg-gray-100', 'text-gray-500');
+            listViewBtn.classList.add('active');
+            gridViewBtn.classList.remove('active');
         });
 
         // Preview Modal

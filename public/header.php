@@ -11,502 +11,523 @@ $page = basename($_SERVER['PHP_SELF'], ".php");
 
 // Define a title based on the page
 $titles = [
-    "index" => "Dashboard",
-    "profile" => "Profile",
-    "lab_schedule" => "Lab Schedule",
+    "index"        => "Dashboard",
+    "profile"      => "Profile Settings",
+    "lab_schedule" => "Computer and Lab",
     "announcement" => "Announcements",
-    "leader" => "Leaderboard",
-    "sitin" => "Sit-In",
-    "laboratory" => "Laboratory",
-    "resources" => "Resources",
-    "reservation" => "Reservations",
-    "history" => "History",
-    "rules" => "Rules & Regulations",
-    "lab" => "Lab Schedule",
+    "leader"       => "Rewards & Leaderboards",
+    "sitin"        => "Sit-In Rules",
+    "laboratory"   => "Laboratory Rules",
+    "resources"    => "Resources",
+    "reservation"  => "Reservations",
+    "history"      => "Sit-In History",
+    "rules"        => "Rules & Regulations",
+    "lab"          => "Computer and Lab",
+    "student_sc"   => "Student Dashboard",
 ];
-
-// Set the page title dynamically (default to 'Dashboard' if not found)
 $pageTitle = isset($titles[$page]) ? $titles[$page] : "Dashboard";
 
-// Fetch user info from session or database
-$firstname = "Guest";
-$middlename = "";
-$lastname = "";
-$initials = "G";
+// ===== Fetch user info =====
+$firstname       = $_SESSION['firstname'] ?? "Student";
+$lastname        = $_SESSION['lastname']  ?? "";
+$profile_picture = $_SESSION['profile_picture'] ?? "default-profile.png";
+$role            = $_SESSION['role'] ?? "student";
 
-function updateUserSession($conn, &$firstname, &$middlename, &$lastname, &$profile_picture, &$role, &$initials) {
-    if (isset($_SESSION['login_user'])) {
-        $username = $_SESSION['login_user'];
-        $query = $conn->prepare("SELECT user_id, firstname, middlename, lastname, profile_picture, role FROM users WHERE username = ?");
-        if (!$query) {
-            die("Prepare failed: " . $conn->error);
-        }
-        $query->bind_param("s", $username);
-        if (!$query->execute()) {
-            die("Execute failed: " . $query->error);
-        }
-        $result = $query->get_result();
-        
-        if ($result->num_rows > 0) {
-            $user = $result->fetch_assoc();
-            // Update session variables
-            $_SESSION['user_id'] = $user['user_id'];
-            $_SESSION['firstname'] = $user['firstname'];
-            $_SESSION['middlename'] = $user['middlename'];
-            $_SESSION['lastname'] = $user['lastname'];
-            $_SESSION['role'] = $user['role'];
-            $_SESSION['profile_picture'] = $user['profile_picture'] ?? "default-profile.png";
-        
-            // Update the passed variables
-            $firstname = $_SESSION['firstname'];
-            $middlename = $_SESSION['middlename'];
-            $lastname = $_SESSION['lastname'];
+// Refresh user info from DB to catch any profile updates
+if (isset($_SESSION['login_user'])) {
+    $username = $_SESSION['login_user'];
+    $q = $conn->prepare("SELECT firstname, lastname, profile_picture, role FROM users WHERE idno = ?");
+    if ($q) {
+        $q->bind_param("s", $username);
+        $q->execute();
+        $r = $q->get_result();
+        if ($r && $r->num_rows > 0) {
+            $u = $r->fetch_assoc();
+            $_SESSION['firstname']       = $u['firstname'];
+            $_SESSION['lastname']        = $u['lastname'];
+            $_SESSION['profile_picture'] = $u['profile_picture'] ?? 'default-profile.png';
+            $_SESSION['role']            = $u['role'];
+            $firstname       = $u['firstname'];
+            $lastname        = $u['lastname'];
             $profile_picture = $_SESSION['profile_picture'];
-            $role = $_SESSION['role'];
-            $initials = strtoupper(substr($firstname, 0, 1) . substr($lastname, 0, 1));
+            $role            = $u['role'];
         }
-        $query->close();
+        $q->close();
     }
 }
 
-// Define default values
-$firstname = "Guest";
-$middlename = "";
-$lastname = "";
-$profile_picture = "default-profile.png";
-$role = "Guest";
-$initials = "G";
-
-// Call the function and pass variables by reference
-updateUserSession($conn, $firstname, $middlename, $lastname, $profile_picture, $role, $initials);
-
-// Function to get notifications from database in chronological order
-function getNotifications($conn, $limit = 5) {
-    $notifications = [];
-    $user_id = $_SESSION['user_id'] ?? 0;
-    $role = $_SESSION['role'] ?? 'student';
-    
-    if ($role === 'student') {
-        $query = "SELECT notification_id, message, is_read, created_at 
-                 FROM notifications 
-                 WHERE (user_id = ? AND notification_type = 'student')
-                 ORDER BY created_at DESC LIMIT ?";
-    } else {
-        $query = "SELECT notification_id, message, is_read, created_at 
-                 FROM notifications 
-                 WHERE notification_type = 'admin'
-                 ORDER BY created_at DESC LIMIT ?";
-    }
-    
-    $stmt = $conn->prepare($query);
-    
-    if ($stmt) {
-        if ($role === 'student') {
-            $stmt->bind_param("ii", $user_id, $limit);
-        } else {
-            $stmt->bind_param("i", $limit);
-        }
-        
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        while ($row = $result->fetch_assoc()) {
-            $notifications[] = $row;
-        }
-        
-        $stmt->close();
-    }
-    
-    return $notifications;
-}
-
-// Function to count unread notifications
-function countUnreadNotifications($conn) {
-    $count = 0;
-    $user_id = $_SESSION['user_id'] ?? 0;
-    $role = $_SESSION['role'] ?? 'student';
-    
-    if ($role === 'student') {
-        $query = "SELECT COUNT(*) as unread_count 
-                 FROM notifications 
-                 WHERE is_read = 0 
-                 AND (user_id = ? AND notification_type = 'student')";
-    } else {
-        $query = "SELECT COUNT(*) as unread_count 
-                 FROM notifications 
-                 WHERE is_read = 0 
-                 AND notification_type = 'admin'";
-    }
-    
-    $stmt = $conn->prepare($query);
-    
-    if ($stmt) {
-        if ($role === 'student') {
-            $stmt->bind_param("i", $user_id);
-        }
-        
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result && $result->num_rows > 0) {
-            $row = $result->fetch_assoc();
-            $count = $row['unread_count'];
-        }
-        
-        $stmt->close();
-    }
-    
-    return $count;
-}
-
-// Mark notification as read (AJAX request handling)
+// ===== Notification AJAX handling =====
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
-    
-    // Mark single notification as read
+
     if (isset($_POST['mark_read']) && isset($_POST['notification_id'])) {
         $notificationId = intval($_POST['notification_id']);
-        
-        $markReadQuery = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE notification_id = ?");
-        if ($markReadQuery) {
-            $markReadQuery->bind_param("i", $notificationId);
-            
-            if ($markReadQuery->execute()) {
-                echo json_encode(['success' => true]);
-            } else {
-                echo json_encode(['success' => false, 'error' => $conn->error]);
-            }
-            
-            $markReadQuery->close();
+        $mq = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE notification_id = ?");
+        if ($mq) {
+            $mq->bind_param("i", $notificationId);
+            echo json_encode(['success' => $mq->execute()]);
+            $mq->close();
         } else {
-            echo json_encode(['success' => false, 'error' => $conn->error]);
+            echo json_encode(['success' => false]);
         }
-        
         $conn->close();
         exit;
     }
-    
-    // Mark all notifications as read
+
     if (isset($_POST['mark_all_read'])) {
-        $markAllReadQuery = $conn->query("UPDATE notifications SET is_read = 1 WHERE is_read = 0");
-        
-        if ($markAllReadQuery) {
-            echo json_encode(['success' => true]);
+        $user_id = $_SESSION['user_id'] ?? 0;
+        $mqa = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND notification_type = 'student' AND is_read = 0");
+        if ($mqa) {
+            $mqa->bind_param("i", $user_id);
+            echo json_encode(['success' => $mqa->execute()]);
+            $mqa->close();
         } else {
-            echo json_encode(['success' => false, 'error' => $conn->error]);
+            echo json_encode(['success' => false]);
         }
-        
         $conn->close();
         exit;
     }
 }
 
-// Get notifications and unread count
-$notifications = getNotifications($conn, 5); // Get in chronological order
-$unreadCount = countUnreadNotifications($conn);
+// ===== Fetch notifications =====
+$notifications = [];
+$unreadCount   = 0;
+$user_id       = $_SESSION['user_id'] ?? 0;
+
+// Get total unread count for badge
+$countQuery = $conn->prepare("SELECT COUNT(*) as cnt FROM notifications WHERE user_id = ? AND notification_type = 'student' AND is_read = 0");
+if ($countQuery) {
+    $countQuery->bind_param("i", $user_id);
+    $countQuery->execute();
+    $unreadCount = $countQuery->get_result()->fetch_assoc()['cnt'] ?? 0;
+    $countQuery->close();
+}
+
+$nq = $conn->prepare(
+    "SELECT notification_id, message, is_read, created_at
+     FROM notifications
+     WHERE user_id = ? AND notification_type = 'student'
+     ORDER BY created_at DESC LIMIT 5"
+);
+if ($nq) {
+    $nq->bind_param("i", $user_id);
+    $nq->execute();
+    $nr = $nq->get_result();
+    while ($row = $nr->fetch_assoc()) {
+        $notifications[] = $row;
+    }
+    $nq->close();
+}
 $conn->close();
+
+// Determine if profile picture exists
+$hasProfile = ($profile_picture && $profile_picture !== 'default-profile.png' && file_exists(__DIR__ . '/upload/' . $profile_picture));
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Header</title>
-    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-    .header {
+
+<style>
+    /* ===== STUDENT HEADER — DARK ACADEMIC ===== */
+    .student-header {
+        background: rgba(13, 11, 26, 0.85);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border-bottom: 1px solid rgba(139, 63, 217, 0.2);
+        padding: 14px 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         position: sticky;
         top: 0;
-        z-index: 100;
-        background-color: white;
+        z-index: 900;
+        flex-shrink: 0;
     }
 
-    #profileDropdown, #notificationDropdown {
-        position: absolute;
-        z-index: 1000;
+    .student-header .header-left h1 {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 20px;
+        font-weight: 700;
+        color: #fff;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        letter-spacing: 1px;
     }
-    
-    .notification-badge {
-        position: absolute;
-        top: -5px;
-        right: -5px;
-        background-color: #EF4444;
-        color: white;
-        font-size: 10px;
-        min-width: 18px;
-        height: 18px;
-        border-radius: 9px;
+
+    .student-header .header-left h1::after {
+        content: '';
+        width: 36px;
+        height: 3px;
+        background: linear-gradient(90deg, #8B3FD9, transparent);
+        border-radius: 2px;
+        box-shadow: 0 0 10px rgba(139, 63, 217, 0.6);
+    }
+
+    .student-header .header-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    /* Notification Bell Button */
+    .sh-notif-btn {
+        width: 38px;
+        height: 38px;
         display: flex;
         align-items: center;
         justify-content: center;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(139, 63, 217, 0.25);
+        border-radius: 10px;
+        color: #fff;
+        position: relative;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-size: 15px;
     }
-    
-    .notification-item {
-        transition: background-color 0.3s;
+    .sh-notif-btn:hover {
+        background: rgba(139, 63, 217, 0.12);
+        border-color: #8B3FD9;
+        box-shadow: 0 0 12px rgba(139, 63, 217, 0.2);
     }
-    
-    .notification-item:hover {
-        background-color: #F3F4F6;
+    .sh-notif-badge {
+        position: absolute;
+        top: -3px;
+        right: -3px;
+        background: #ef4444;
+        color: #fff;
+        font-size: 9px;
+        font-weight: 800;
+        min-width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #0D0B1A;
     }
-    
-    .notification-item.unread {
-        background-color: #EFF6FF;
+
+    /* Notification Dropdown */
+    .sh-notif-dropdown {
+        position: absolute;
+        right: 80px;
+        top: 70px;
+        width: 340px;
+        background: #161326;
+        border: 1px solid rgba(139, 63, 217, 0.3);
+        border-radius: 16px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        display: none;
+        overflow: hidden;
+        z-index: 2000;
     }
-    </style>
-</head>
-<body>
-<header class="header flex items-center justify-between bg-white p-6">
-    <h2 class="text-2xl font-semibold"><?php echo $pageTitle; ?></h2>
-    <div class="flex items-center">
+    .sh-notif-head {
+        padding: 14px 18px;
+        border-bottom: 1px solid rgba(139, 63, 217, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .sh-notif-head h3 {
+        margin: 0;
+        color: #fff;
+        font-size: 14px;
+        font-family: 'Orbitron', sans-serif;
+        letter-spacing: 0.5px;
+    }
+    .sh-notif-head button {
+        background: none;
+        border: none;
+        color: #8B3FD9;
+        font-size: 11px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: color 0.2s;
+    }
+    .sh-notif-head button:hover { color: #C084FC; }
+
+    .sh-notif-item {
+        padding: 13px 18px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        transition: background 0.2s;
+    }
+    .sh-notif-item:hover { background: rgba(139, 63, 217, 0.06); }
+    .sh-notif-item.unread { background: rgba(139, 63, 217, 0.1); }
+    .sh-notif-item p { margin: 0 0 4px; font-size: 13px; color: #fff; line-height: 1.4; }
+    .sh-notif-item span { font-size: 11px; color: #9A8FB0; }
+    .sh-notif-item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .sh-mark-btn {
+        background: none; border: none; color: #8B3FD9; font-size: 10px;
+        cursor: pointer; padding: 2px 6px; border-radius: 4px; font-weight: 600;
+        transition: all 0.2s; flex-shrink: 0;
+    }
+    .sh-mark-btn:hover { background: rgba(139, 63, 217, 0.15); color: #C084FC; }
+
+    /* Profile Area */
+    .sh-profile-wrap { position: relative; }
+    .sh-profile-btn {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        padding: 6px 12px 6px 6px;
+        border-radius: 12px;
+        border: 1px solid rgba(139, 63, 217, 0.2);
+        background: rgba(255, 255, 255, 0.04);
+        transition: all 0.3s;
+    }
+    .sh-profile-btn:hover {
+        background: rgba(139, 63, 217, 0.1);
+        border-color: rgba(139, 63, 217, 0.4);
+    }
+    .sh-profile-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 2px solid rgba(139, 63, 217, 0.5);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .sh-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .sh-profile-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: #fff;
+        white-space: nowrap;
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .sh-profile-role {
+        font-size: 10px;
+        color: #9A8FB0;
+        text-transform: capitalize;
+    }
+    .sh-profile-chevron { color: #9A8FB0; font-size: 11px; transition: transform 0.3s; }
+    .sh-profile-btn.open .sh-profile-chevron { transform: rotate(180deg); }
+
+    /* Profile Dropdown */
+    .sh-profile-dropdown {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 10px);
+        width: 190px;
+        background: #161326;
+        border: 1px solid rgba(139, 63, 217, 0.3);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        display: none;
+        z-index: 2000;
+    }
+    .sh-profile-dropdown a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        color: #D1C7E0;
+        font-size: 13px;
+        text-decoration: none;
+        transition: all 0.2s;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .sh-profile-dropdown a:last-child { border-bottom: none; }
+    .sh-profile-dropdown a:hover { background: rgba(139, 63, 217, 0.1); color: #fff; }
+    .sh-profile-dropdown a i { width: 16px; text-align: center; color: #9A8FB0; font-size: 14px; }
+    .sh-profile-dropdown a:hover i { color: #C084FC; }
+    .sh-profile-dropdown .logout-link { color: #ef4444 !important; }
+    .sh-profile-dropdown .logout-link i { color: #ef4444 !important; }
+    .sh-profile-dropdown .logout-link:hover { background: rgba(239, 68, 68, 0.1) !important; }
+</style>
+
+<header class="student-header">
+    <div class="header-left">
+        <h1><?php echo strtoupper($pageTitle); ?></h1>
+    </div>
+
+    <div class="header-right">
         <!-- Notification Bell -->
-        <div class="relative mr-6">
-            <div class="cursor-pointer" id="notificationBell">
-                <i class="fas fa-bell text-xl"></i>
-                <?php if ($unreadCount > 0): ?>
-                <div class="notification-badge"><?php echo $unreadCount > 99 ? '99+' : $unreadCount; ?></div>
-                <?php endif; ?>
-            </div>
-            
-            
-            <!-- Notification Dropdown -->
-            <div id="notificationDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg overflow-hidden">
-                <div class="flex justify-between items-center p-4 border-b">
-                    <h3 class="font-semibold">Notifications</h3>
-                    <?php if ($unreadCount > 0): ?>
-                    <button id="markAllRead" class="text-xs text-blue-500 hover:text-blue-700">Mark All as Read</button>
-                    <?php endif; ?>
-                </div>
-                
-                <div class="max-h-80 overflow-y-auto">
-                    <?php if (count($notifications) > 0): ?>
-                        <?php foreach ($notifications as $notification): ?>  
-                            <div class="notification-item <?php echo $notification['is_read'] ? '' : 'unread'; ?> p-4 border-b" data-id="<?php echo $notification['notification_id']; ?>">
-                                <div class="flex justify-between">
-                                    <p class="text-sm <?php echo $notification['is_read'] ? 'text-gray-600' : 'text-gray-900 font-medium'; ?>">
-                                        <?php echo htmlspecialchars($notification['message']); ?>
-                                    </p>
-                                    
-                                    <?php if (!$notification['is_read']): ?>
-                                    <button class="mark-read text-xs text-blue-500 hover:text-blue-700 ml-2">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                    <?php endif; ?>
-                                </div>
-                                <p class="text-xs text-gray-500 mt-1">
-                                    <?php echo date('M d, Y h:i A', strtotime($notification['created_at'])); ?>
-                                </p>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <div class="p-4 text-center text-gray-500">No notifications</div>
-                    <?php endif; ?>
-                </div>
-            </div>
-            
+        <div class="sh-notif-btn" id="shNotifBtn" title="Notifications">
+            <i class="fas fa-bell"></i>
+            <?php if ($unreadCount > 0): ?>
+                <div class="sh-notif-badge" id="shNotifBadge"><?php echo $unreadCount > 99 ? '99+' : $unreadCount; ?></div>
+            <?php endif; ?>
         </div>
-        
-        <!-- Profile Dropdown -->
-        <div class="relative">
-            <div class="flex items-center cursor-pointer" id="profileDropdownBtn">
-                <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
-                    <?php 
-                    if($profile_picture && file_exists(__DIR__ . '/../public/upload/' . $profile_picture)){
-                        echo '<img src="upload/' . htmlspecialchars($profile_picture) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
-                    }else{
-                        echo $initials;
-                    }
-                    ?>
-                </div>
-                <div>
-                    <p class="text-sm font-semibold"><?php echo htmlspecialchars("$firstname $lastname"); ?></p>
-                    <p class="text-xs text-gray-500"><?php echo htmlspecialchars(ucfirst($role)); ?></p>
-                </div>
-            </div>
-            <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-1000">
-                <a href="profile.php" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-200">
-                    <i class="fas fa-user mr-3"></i> Profile
-                </a>
-                <a href="logout.php" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-200">
-                    <i class="fas fa-sign-out-alt mr-3"></i> Logout
-                </a>
-            </div>
-        </div>
+
+        <!-- Profile Section Removed -->
     </div>
 </header>
 
+<!-- Notification Dropdown (positioned relative to fixed header) -->
+<div class="sh-notif-dropdown" id="shNotifDropdown">
+    <div class="sh-notif-head">
+        <h3>NOTIFICATIONS</h3>
+        <?php if ($unreadCount > 0): ?>
+            <button id="shMarkAllRead">Mark all read</button>
+        <?php endif; ?>
+    </div>
+    <div id="shNotifList" style="max-height: 340px; overflow-y: auto;">
+        <?php if (count($notifications) > 0): ?>
+            <?php foreach ($notifications as $n): ?>
+                <div class="sh-notif-item <?php echo $n['is_read'] ? '' : 'unread'; ?>"
+                     data-id="<?php echo $n['notification_id']; ?>">
+                    <div class="sh-notif-item-top">
+                        <p><?php echo htmlspecialchars($n['message']); ?></p>
+                        <?php if (!$n['is_read']): ?>
+                            <button class="sh-mark-btn" onclick="shMarkRead(<?php echo $n['notification_id']; ?>, this)">✓</button>
+                        <?php endif; ?>
+                    </div>
+                    <span><?php echo date('M d, h:i A', strtotime($n['created_at'])); ?></span>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <div style="padding: 32px; text-align: center; color: #9A8FB0; font-size: 13px;">No notifications yet</div>
+        <?php endif; ?>
+    </div>
+</div>
+
 <script>
-    // Toggle profile dropdown
-    document.getElementById('profileDropdownBtn').addEventListener('click', function() {
-        document.getElementById('profileDropdown').classList.toggle('hidden');
-        document.getElementById('notificationDropdown').classList.add('hidden');
-    });
+(function() {
+    const notifBtn      = document.getElementById('shNotifBtn');
+    const notifDropdown = document.getElementById('shNotifDropdown');
 
-    // Toggle notification dropdown
-    document.getElementById('notificationBell').addEventListener('click', function() {
-        document.getElementById('notificationDropdown').classList.toggle('hidden');
-        document.getElementById('profileDropdown').classList.add('hidden');
-    });
-
-    // Function to properly style a notification as read
-    function styleNotificationAsRead(notificationItem) {
-        notificationItem.classList.remove('unread');
-        const textElement = notificationItem.querySelector('p:first-of-type');
-        if (textElement) {
-            textElement.classList.remove('text-gray-900', 'font-medium');
-            textElement.classList.add('text-gray-600');
-        }
-        const markReadBtn = notificationItem.querySelector('.mark-read');
-        if (markReadBtn) markReadBtn.remove();
-    }
-
-    // Mark single notification as read
-    document.querySelectorAll('.mark-read').forEach(button => {
-        button.addEventListener('click', function(e) {
+    // Notification toggle
+    if (notifBtn && notifDropdown) {
+        notifBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            const notificationItem = this.closest('.notification-item');
-            const notificationId = notificationItem.dataset.id;
-            
-            styleNotificationAsRead(notificationItem);
-            updateNotificationBadge();
-            
-            fetch(window.location.href, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: 'mark_read=1&notification_id=' + notificationId
-            }).catch(error => {
-                console.error('Error:', error);
-            });
-        });
-    });
-
-    // Mark all notifications as read
-    const markAllReadBtn = document.getElementById('markAllRead');
-    if (markAllReadBtn) {
-        markAllReadBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            document.querySelectorAll('.notification-item.unread').forEach(item => {
-                styleNotificationAsRead(item);
-            });
-            
-            const badge = document.querySelector('.notification-badge');
-            if (badge) badge.remove();
-            
-            this.remove();
-            
-            fetch(window.location.href, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: 'mark_all_read=1'
-            }).catch(error => {
-                console.error('Error:', error);
-            });
+            const isOpen = notifDropdown.style.display === 'block';
+            notifDropdown.style.display = isOpen ? 'none' : 'block';
         });
     }
 
-    // Function to update notification badge
-    function updateNotificationBadge() {
-        const unreadItems = document.querySelectorAll('.notification-item.unread').length;
-        const badge = document.querySelector('.notification-badge');
-        const markAllBtn = document.getElementById('markAllRead');
-        
-        if (unreadItems === 0) {
-            if (badge) badge.remove();
-            if (markAllBtn) markAllBtn.remove();
-        } else if (badge) {
-            badge.textContent = unreadItems > 99 ? '99+' : unreadItems;
-        }
+    // Close on outside click
+    document.addEventListener('click', function() {
+        if (notifDropdown) notifDropdown.style.display = 'none';
+    });
+
+    // Prevent dropdown close when clicking inside
+    if (notifDropdown) {
+        notifDropdown.addEventListener('click', e => e.stopPropagation());
+    }
+})();
+
+// Mark single notification as read
+function shMarkRead(id, element) {
+    const item = element.closest('.sh-notif-item') || element;
+    let wasUnread = false;
+
+    // Optimistic UI Update: change style immediately!
+    if (item.classList.contains('unread')) {
+        item.classList.remove('unread');
+        const btn = item.querySelector('.sh-mark-btn');
+        if (btn) btn.remove();
+        shUpdateBadge(-1);
+        wasUnread = true;
     }
 
-    // Close dropdowns if clicked outside
-    document.addEventListener('click', function(event) {
-        const profileDropdown = document.getElementById('profileDropdown');
-        const profileBtn = document.getElementById('profileDropdownBtn');
-        const notificationDropdown = document.getElementById('notificationDropdown');
-        const notificationBtn = document.getElementById('notificationBell');
-        
-        if (profileDropdown && profileBtn && !profileBtn.contains(event.target) && !profileDropdown.contains(event.target)) {
-            profileDropdown.classList.add('hidden');
+    fetch(window.location.href, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'mark_read=1&notification_id=' + id
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            // Revert on failure
+            if (wasUnread) {
+                item.classList.add('unread');
+                shUpdateBadge(1);
+            }
         }
-        
-        if (notificationDropdown && notificationBtn && !notificationBtn.contains(event.target) && !notificationDropdown.contains(event.target)) {
-            notificationDropdown.classList.add('hidden');
+    }).catch(err => {
+        console.error(err);
+        if (wasUnread) {
+            item.classList.add('unread');
+            shUpdateBadge(1);
         }
     });
-</script>
-<script>
-// Function to check for upcoming reservations
+}
+
+// Add click listeners to student notification items themselves
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.sh-notif-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            if (this.classList.contains('unread')) {
+                if (e.target.classList.contains('sh-mark-btn')) return;
+                const id = this.dataset.id;
+                const btn = this.querySelector('.sh-mark-btn');
+                shMarkRead(id, btn || this);
+            }
+        });
+    });
+});
+
+// Mark all notifications as read
+const shMarkAllBtn = document.getElementById('shMarkAllRead');
+if (shMarkAllBtn) {
+    shMarkAllBtn.addEventListener('click', function() {
+        // Optimistic UI Update: clear immediately!
+        const unreadItems = document.querySelectorAll('.sh-notif-item.unread');
+        
+        unreadItems.forEach(item => {
+            item.classList.remove('unread');
+            const b = item.querySelector('.sh-mark-btn');
+            if (b) b.remove();
+        });
+        const badge = document.getElementById('shNotifBadge');
+        if (badge) badge.remove();
+        this.remove();
+
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'mark_all_read=1'
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                location.reload();
+            }
+        }).catch(() => location.reload());
+    });
+}
+
+// Update notification badge count
+function shUpdateBadge(delta) {
+    const badge = document.getElementById('shNotifBadge');
+    if (!badge) return;
+    let count = parseInt(badge.textContent) + delta;
+    if (count <= 0) {
+        badge.remove();
+        const markAll = document.getElementById('shMarkAllRead');
+        if (markAll) markAll.remove();
+    } else {
+        badge.textContent = count > 99 ? '99+' : count;
+    }
+}
+
+// Reservation reminder polling
 function checkUpcomingReservations() {
     fetch('check_reservation.php')
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
             if (data.success && data.notifications_sent > 0) {
-                // Show notification for each new reservation
                 data.reservations.forEach(reservation => {
-                    const message = `Your reservation for Lab ${reservation.lab_number}, PC ${reservation.pc_number} will start in 30 minutes at ${new Date('2000-01-01T' + reservation.time_in).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
-                    
-                    // Show browser notification if available
+                    const msg = `Your reservation for Lab ${reservation.lab_number}, PC ${reservation.pc_number} starts in 30 min.`;
                     if ('Notification' in window && Notification.permission === 'granted') {
-                        new Notification('Reservation Reminder', {
-                            body: message,
-                            icon: 'notification-icon.png'
-                        });
+                        new Notification('Reservation Reminder', { body: msg });
                     }
-                    
-                    // Show toast notification
-                    showNotification(message, 10000);
                 });
-                
-                // Refresh notifications
-                refreshNotifications();
             }
         })
-        .catch(error => {
-            // Silent error handling
-        });
+        .catch(() => {});
 }
 
-// Function to refresh notifications
-function refreshNotifications() {
-    fetch('count_unread_notifications.php')
-        .then(response => response.json())
-        .then(data => {
-            if (data.unread_count > 0) {
-                const badge = document.querySelector('.notification-badge') || 
-                    document.createElement('div');
-                badge.className = 'notification-badge';
-                badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
-                const bell = document.getElementById('notificationBell');
-                if (!bell.querySelector('.notification-badge')) {
-                    bell.appendChild(badge);
-                }
-            } else {
-                const badge = document.querySelector('.notification-badge');
-                if (badge) badge.remove();
-            }
-        })
-        .catch(error => {
-            // Silent error handling
-        });
-}
-
-// Check every 10 seconds
-setInterval(checkUpcomingReservations, 10000);
-
-// Check immediately when page loads
 document.addEventListener('DOMContentLoaded', function() {
     checkUpcomingReservations();
-    
-    // Request notification permission
-    if ('Notification' in window) {
-        Notification.requestPermission();
-    }
+    setInterval(checkUpcomingReservations, 60000);
+    if ('Notification' in window) Notification.requestPermission();
 });
 </script>
-</body>
-</html>

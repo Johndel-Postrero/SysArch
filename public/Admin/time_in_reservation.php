@@ -71,33 +71,34 @@ try {
         throw new Exception("Active sit-in already exists for this reservation");
     }
     $checkSitin->close();
-    
-    // 4. Mark PC as unavailable
-    $updatePcStatus = $conn->prepare("INSERT INTO lab_pcs (lab_number, pc_number, status) 
-                                    VALUES (?, ?, 'unavailable')
-                                    ON DUPLICATE KEY UPDATE status = 'unavailable'");
-    if (!$updatePcStatus) {
+
+    // Check if PC in the same lab is occupied by another active sit-in
+    $checkPc = $conn->prepare("SELECT sitin_id FROM sitin WHERE lab_number = ? AND pc_number = ? AND time_out IS NULL");
+    if (!$checkPc) {
         throw new Exception("Prepare failed: " . $conn->error);
     }
-    $updatePcStatus->bind_param("ii", 
-        $reservation['lab_number'],
-        $reservation['pc_number']
-    );
-    
-    if (!$updatePcStatus->execute()) {
-        throw new Exception("Failed to update PC status: " . $updatePcStatus->error);
+    $checkPc->bind_param("ii", $reservation['lab_number'], $reservation['pc_number']);
+    if (!$checkPc->execute()) {
+        throw new Exception("Failed to check PC status: " . $checkPc->error);
     }
-    $updatePcStatus->close();
+    if ($checkPc->get_result()->num_rows > 0) {
+        throw new Exception("PC " . $reservation['pc_number'] . " in Lab " . $reservation['lab_number'] . " is currently occupied by another student.");
+    }
+    $checkPc->close();
     
-    // 5. Record sit-in (without time_out)
-    $insertSitin = $conn->prepare("INSERT INTO sitin (idno, lab_number, sitin_date, time_in, purpose) 
-                                  VALUES (?, ?, ?, ?, ?)");
+    // 4. Mark PC as available/occupied (We do not mark it as broken 'unavailable')
+    // The PC status remains 'available' in database, but dynamically displays as occupied yellow.
+    
+    // 5. Record sit-in (without time_out) with pc_number
+    $insertSitin = $conn->prepare("INSERT INTO sitin (idno, lab_number, pc_number, sitin_date, time_in, purpose) 
+                                  VALUES (?, ?, ?, ?, ?, ?)");
     if (!$insertSitin) {
         throw new Exception("Prepare failed: " . $conn->error);
     }
-    $insertSitin->bind_param("iisss", 
+    $insertSitin->bind_param("iiisss", 
         $reservation['idno'],
         $reservation['lab_number'],
+        $reservation['pc_number'],
         $reservation['reservation_date'],
         $reservation['time_in'],
         $reservation['purpose']
