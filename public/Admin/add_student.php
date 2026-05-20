@@ -1,6 +1,12 @@
 <?php
+error_reporting(0);
+ini_set('display_errors', 0);
+header('Content-Type: application/json');
+
 // Include the database connection
 require __DIR__ . '/../../config/db.php';
+
+try {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Get form data
@@ -30,11 +36,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Check if ID Number already exists
+    $checkSql = "SELECT idno FROM users WHERE idno = ?";
+    $checkStmt = $conn->prepare($checkSql);
+    $checkStmt->bind_param("s", $idno);
+    $checkStmt->execute();
+    if ($checkStmt->get_result()->num_rows > 0) {
+        echo json_encode(['success' => false, 'error' => 'ID Number already registered']);
+        $checkStmt->close();
+        $conn->close();
+        exit();
+    }
+    $checkStmt->close();
+
+    // Check if Username already exists
+    $checkSql = "SELECT username FROM users WHERE username = ?";
+    $checkStmt = $conn->prepare($checkSql);
+    $checkStmt->bind_param("s", $username);
+    $checkStmt->execute();
+    if ($checkStmt->get_result()->num_rows > 0) {
+        echo json_encode(['success' => false, 'error' => 'Username already taken']);
+        $checkStmt->close();
+        $conn->close();
+        exit();
+    }
+    $checkStmt->close();
+
+    // Check if Email already exists
+    $checkSql = "SELECT email FROM users WHERE email = ?";
+    $checkStmt = $conn->prepare($checkSql);
+    $checkStmt->bind_param("s", $email);
+    $checkStmt->execute();
+    if ($checkStmt->get_result()->num_rows > 0) {
+        echo json_encode(['success' => false, 'error' => 'Email already registered']);
+        $checkStmt->close();
+        $conn->close();
+        exit();
+    }
+    $checkStmt->close();
+
     // Insert into database
     $sql = "INSERT INTO users (idno, lastname, firstname, middlename, username, course, level, email, password, profile_picture, role)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'student')";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("isssssssss", $idno, $lastname, $firstname, $middlename, $username, $course, $level, $email, $password, $profile_picture);
+    $stmt->bind_param("ssssssssss", $idno, $lastname, $firstname, $middlename, $username, $course, $level, $email, $password, $profile_picture);
 
     if ($stmt->execute()) {
         echo json_encode(['success' => true]);
@@ -44,6 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmt->close();
     $conn->close();
+    exit();
+}
+
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
     exit();
 }
 ?>
@@ -58,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="col-span-2 flex flex-col items-center space-y-2">
                     <label for="profile-picture-upload" class="cursor-pointer">
                         <img id="profile-picture-preview" 
-                             src="images/default-profile.png" 
+                             src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23c084fc'><rect width='100%25' height='100%25' fill='%23161326'/><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>"
                              alt="Profile Picture" 
                              class="rounded-full w-24 h-24 object-cover border-2 border-gray-300"/>
                         <i class="zmdi zmdi-camera absolute bottom-2 right-2 bg-gray-700 text-white p-1 rounded-full"></i>

@@ -28,7 +28,7 @@ try {
         SELECT r.reservation_id 
         FROM reservations r
         JOIN users u ON r.idno = u.idno
-        WHERE r.reservation_id = ? AND u.username = ? AND r.status = 'pending'
+        WHERE r.reservation_id = ? AND u.idno = ? AND r.status = 'pending'
     ");
     $verifyQuery->bind_param("is", $reservationId, $username);
     $verifyQuery->execute();

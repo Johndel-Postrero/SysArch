@@ -1,478 +1,650 @@
 <?php
-// Prevent caching
-header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1.
-header("Pragma: no-cache"); // HTTP 1.0.
-header("Expires: 0"); // Proxies.
-
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
 session_start();
-
-// Check if the user is logged in
-if (!isset($_SESSION['login_user'])) {
-    header("Location: login.php");
-    exit();
-}
-
-// Database connection
+if (!isset($_SESSION['login_user'])) { header("Location: login.php"); exit(); }
 require __DIR__ . '/../config/db.php';
 
-// Fetch announcements from the database along with admin details
-$query = "
-    SELECT a.*, u.firstname, u.middlename, u.lastname, u.profile_picture 
-    FROM announcements a
-    JOIN users u ON a.admin_id = u.user_id
-    WHERE u.role = 'admin'
-    ORDER BY a.created_at DESC
-";
-$result = $conn->query($query);
+// Sorting & Search Setup
+$sort = isset($_GET['sort']) ? $_GET['sort'] : 'newest';
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+$order_by = "a.created_at DESC"; // Default: Newest First
+if ($sort === 'oldest') {
+    $order_by = "a.created_at ASC";
+} elseif ($sort === 'az') {
+    $order_by = "a.title ASC";
+} elseif ($sort === 'za') {
+    $order_by = "a.title DESC";
+}
+
+// Pagination Setup
+$limit = 7;
+$page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+if ($page_num < 1) $page_num = 1;
+$offset = ($page_num - 1) * $limit;
+
+// Build search condition
+$search_cond = " WHERE u.role = 'admin' ";
+$params = [];
+$types = "";
+
+if ($search !== "") {
+    $search_cond .= " AND (a.title LIKE ? OR a.description LIKE ?) ";
+    $search_like = "%" . $search . "%";
+    $params = [$search_like, $search_like];
+    $types = "ss";
+}
+
+// Get total count for pagination
+$count_query = "SELECT COUNT(*) as total FROM announcements a JOIN users u ON a.admin_id = u.user_id" . $search_cond;
+$stmt = $conn->prepare($count_query);
+if ($search !== "") {
+    $stmt->bind_param($types, ...$params);
+}
+$stmt->execute();
+$count_result = $stmt->get_result();
+$total_rows = $count_result->fetch_assoc()['total'];
+$stmt->close();
+
+$total_pages = ceil($total_rows / $limit);
+if ($page_num > $total_pages && $total_pages > 0) $page_num = $total_pages;
+$offset = ($page_num - 1) * $limit;
+
+// Fetch announcements with sorting, search, limit and offset
+$query = "SELECT a.*, u.firstname, u.middlename, u.lastname, u.profile_picture,
+                 (SELECT COUNT(*) FROM comments c WHERE c.announcement_id = a.announcement_id) AS comment_count
+          FROM announcements a
+          JOIN users u ON a.admin_id = u.user_id
+          " . $search_cond . "
+          ORDER BY $order_by
+          LIMIT ? OFFSET ?";
+
+$stmt = $conn->prepare($query);
+if ($search !== "") {
+    $bind_params = array_merge($params, [$limit, $offset]);
+    $bind_types = $types . "ii";
+    $stmt->bind_param($bind_types, ...$bind_params);
+} else {
+    $stmt->bind_param("ii", $limit, $offset);
+}
+$stmt->execute();
+$result = $stmt->get_result();
+$announcements = [];
+if ($result && $result->num_rows > 0) {
+    while ($row = $result->fetch_assoc()) $announcements[] = $row;
+}
+$stmt->close();
+$conn->close();
 ?>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <title>Announcements</title>
-    <script>
-        window.onpageshow = function(event) {
-            if (event.persisted) {
-                window.location.reload();
-            }
-        };
-    </script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Announcements – CCS Sit-In</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/student-dark.css">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
     <style>
-        body {
-            font-family: "Poppins-Regular";
-            color: #333;
-            font-size: 16px;
-            margin: 0;
+        .ann-row {
+            cursor: pointer;
+            transition: all 0.25s ease;
         }
-        header {
-            z-index: 1;
+        .ann-row:hover td {
+            background: rgba(139, 63, 217, 0.08) !important;
         }
-        .sidebar {
-            width: 5rem; /* Default width */
-            transition: all 0.3s ease-in-out;
+        .ann-author-avatar {
+            width: 42px; height: 42px; border-radius: 50%;
+            border: 2px solid rgba(139,63,217,0.4);
+            overflow: hidden; display: flex; align-items: center; justify-content: center;
+            background: rgba(139,63,217,0.15); flex-shrink: 0;
         }
-        .sidebar:hover {
-            width: 16rem; /* Expanded width */
+        .comment-area {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            color: #fff;
+            font-size: 14px;
+            font-family: var(--font-b);
+            width: 100%;
+            resize: vertical;
+            min-height: 72px;
+            outline: none;
+            transition: all 0.3s;
         }
-        .sidebar:hover .sidebar-text {
-            display: inline;
+        .comment-area:focus { border-color: var(--purple-glow); box-shadow: 0 0 12px rgba(139,63,217,0.2); }
+        .comment-area::placeholder { color: var(--text-dim); }
+        .btn-comment {
+            background: var(--purple-glow); color: #fff;
+            border: none; padding: 9px 20px; border-radius: 10px;
+            font-size: 13px; font-weight: 600; font-family: var(--font-b);
+            cursor: pointer; transition: all 0.3s; margin-top: 8px;
         }
-        .sidebar-text {
-            display: none;
+        .btn-comment:hover { background: var(--purple-light); }
+        .comment-item {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(139,63,217,0.1);
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-top: 10px;
         }
-        .sidebar a {
-            display: flex;
-            align-items: center;
-            justify-content: center; /* Centers the icons */
-            padding: 1rem;
+        .search-bar {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            color: #fff; padding: 10px 16px 10px 40px;
+            border-radius: 12px; font-size: 14px; font-family: var(--font-b);
+            outline: none; width: 100%; transition: all 0.3s;
         }
-        .sidebar:hover a {
-            justify-content: flex-start; /* Aligns text to the left on hover */
-        }
-        .sidebar i {
-            font-size: 1.5rem; /* Slightly larger icons */
-        }
-        .main-content {
-            margin-left: 5rem; /* Adjust based on the sidebar width */
-            transition: margin-left 0.3s ease-in-out; /* Smooth transition */
-        }
-        .sidebar:hover + .main-content {
-            margin-left: 16rem; /* Adjust content when sidebar expands */
-        }
+        .search-bar:focus { border-color: var(--purple-glow); box-shadow: 0 0 12px rgba(139,63,217,0.2); }
+        .search-bar::placeholder { color: var(--text-dim); }
     </style>
 </head>
-<body class="bg-gray-100 font-sans antialiased">
-    <div class="flex h-screen">
-        <!-- Include Sidebar -->
-        <?php include 'sidebar.php'; ?>
-
-        <!-- Main Content -->
-        <div class="main-content flex-1 flex flex-col">
-            <!-- Include Header -->
-            <?php include 'header.php'; ?>
-            <div class="flex-1 p-6 flex justify-center items-center">
-                <div class="main-con p-6 max-w-4xl w-full">
-                    <!-- Search and Filter -->
-                    <div class="flex items-center space-x-4 mb-6">
-                        <div class="relative flex-1">
-                            <input class="w-full py-2 pl-10 pr-4 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="Search" type="text"/>
-                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                        </div>
-                        <!-- Sort Dropdown -->
-                        <div class="relative dropdown">
-                            <!-- Dropdown Button -->
-                            <button id="sortButton" class="flex items-center space-x-2 text-gray-600 relative focus:outline-none">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
-                                </svg>
-                                <span>Sort</span>
-                            </button>
-
-                            <!-- Dropdown Menu -->
-                            <div id="sortDropdown" class="hidden absolute left-0 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 w-32">
-                                <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="A-Z">A-Z</a>
-                                <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="Z-A">Z-A</a>
-                                <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="Newest">Newest</a>
-                                <a href="#" class="block px-4 py-2 hover:bg-gray-100" data-sort="Oldest">Oldest</a>
-                            </div>
-                        </div>
-
+<body>
+    <canvas id="star-canvas"></canvas>
+    <?php include 'sidebar.php'; ?>
+    <div class="main-wrapper">
+        <?php include 'header.php'; ?>
+        <div class="student-content">
+            <div class="content-card">
+                <!-- Controls -->
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px;">
+                    <div style="position:relative;flex:1;max-width:400px;">
+                        <i class="fas fa-search" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:13px;"></i>
+                        <input type="text" id="annSearch" placeholder="Search announcements…" class="search-bar" value="<?php echo htmlspecialchars($search); ?>" onkeypress="handleSearchKeyPress(event)">
                     </div>
+                    <div style="position:relative;">
+                        <button id="sortBtn" style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-dim);padding:10px 16px;border-radius:12px;font-size:13px;font-family:var(--font-b);cursor:pointer;transition:all 0.3s;" onmouseover="this.style.borderColor='var(--purple-glow)'" onmouseout="this.style.borderColor='var(--border)'" onclick="toggleSortDropdown(event)">
+                            <i class="fas fa-sort-amount-down"></i> Sort: <?php
+                                if ($sort === 'oldest') echo 'Oldest First';
+                                elseif ($sort === 'az') echo 'A - Z';
+                                elseif ($sort === 'za') echo 'Z - A';
+                                else echo 'Newest First';
+                            ?>
+                        </button>
+                        <div id="sortMenu" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:#161326;border:1px solid rgba(139,63,217,0.3);border-radius:12px;overflow:hidden;min-width:160px;box-shadow:0 20px 40px rgba(0,0,0,0.4);z-index:100;">
+                            <a href="?page=1&sort=newest&search=<?php echo urlencode($search); ?>" style="color:#D1C7E0;font-size:13px;text-decoration:none;display:block;padding:10px 16px;transition:all 0.2s;" onmouseover="this.style.background='rgba(139,63,217,0.1)'" onmouseout="this.style.background=''">Newest First</a>
+                            <a href="?page=1&sort=oldest&search=<?php echo urlencode($search); ?>" style="color:#D1C7E0;font-size:13px;text-decoration:none;display:block;padding:10px 16px;transition:all 0.2s;" onmouseover="this.style.background='rgba(139,63,217,0.1)'" onmouseout="this.style.background=''">Oldest First</a>
+                            <a href="?page=1&sort=az&search=<?php echo urlencode($search); ?>" style="color:#D1C7E0;font-size:13px;text-decoration:none;display:block;padding:10px 16px;transition:all 0.2s;" onmouseover="this.style.background='rgba(139,63,217,0.1)'" onmouseout="this.style.background=''">A - Z</a>
+                            <a href="?page=1&sort=za&search=<?php echo urlencode($search); ?>" style="color:#D1C7E0;font-size:13px;text-decoration:none;display:block;padding:10px 16px;transition:all 0.2s;" onmouseover="this.style.background='rgba(139,63,217,0.1)'" onmouseout="this.style.background=''">Z - A</a>
+                        </div>
+                    </div>
+                </div>
 
-                    <!-- Announcement Cards -->
-                    <?php if ($result && $result->num_rows > 0): ?>
-                        <?php while ($row = $result->fetch_assoc()): ?>
-                            <div class="bg-white rounded-lg shadow p-6 mb-4">
-                                <div class="flex items-center mb-4">
-                                    <div class="w-12 h-12 flex items-center justify-center text-black font-semibold rounded-full mr-2 text-lg border-2 border-gray">
-                                        <?php 
-                                        if (!empty($row['profile_picture']) && file_exists(__DIR__ . '/../public/upload/' . $row['profile_picture'])) {
-                                            echo '<img src="upload/' . htmlspecialchars($row['profile_picture']) . '" alt="Profile Picture" class="w-full h-full object-cover rounded-full">';
-                                        } else {
-                                            // Display initials or a default profile picture
-                                            $initials = strtoupper(substr($row['firstname'], 0, 1) . substr($row['lastname'], 0, 1));
-                                            echo $initials;
-                                        }
-                                        ?>
-                                    </div>
-                                    <div class="ml-4">
-                                        <p class="font-semibold"><?php echo htmlspecialchars($row['firstname'] . ' ' . $row['middlename'] . ' ' . $row['lastname']); ?> · Admin</p>
-                                        <p class="text-sm text-gray-500"><?php echo date("M j, Y", strtotime($row['created_at'])); ?></p>
-                                    </div>
-                                </div>
-                                <h2 class="text-xl font-bold mb-2"><?php echo htmlspecialchars($row['title']); ?></h2>
-                                <p class="text-gray-700 mb-4"><?php echo nl2br(htmlspecialchars($row['description'])); ?></p>
+                <!-- Announcement List Table -->
+                <div class="records-header">
+                    <div class="records-title">
+                        <h3 style="font-family: var(--font-h); font-weight: 700; letter-spacing: 1px;">Announcement List</h3>
+                    </div>
+                </div>
 
-                                <!-- Display Attachment If Exists -->
-                                <?php if (!empty($row['attachment'])): ?>
-                                    <?php
-                                    $file_path = "public/announce/" . htmlspecialchars($row['attachment']);
-                                    $file_extension = strtolower(pathinfo($row['attachment'], PATHINFO_EXTENSION));
-                                    $image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
-                                    ?>
-                                    
-                                    <div class="mt-4">
-                                        <?php if (in_array($file_extension, $image_extensions)): ?>
-                                            <!-- Display Image -->
-                                            <img src="<?php echo $file_path; ?>" alt="Announcement Image" class="w-full rounded-lg mb-4">
+                <div class="dark-table-wrap" style="flex:1; overflow-y:auto;">
+                    <table class="dark-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 120px;">POST NO.</th>
+                                <th>TITLE</th>
+                                <th style="width: 180px;">DATE</th>
+                                <th style="width: 140px; text-align: center;">COMMENTS</th>
+                                <th style="width: 140px; text-align: center;">ATTACHMENT</th>
+                            </tr>
+                        </thead>
+                        <tbody id="annTableBody">
+                            <?php if (!empty($announcements)): ?>
+                                <?php foreach ($announcements as $row):
+                                    $dateStr = date("Y-m-d", strtotime($row['created_at']));
+                                    $hasAttachment = !empty($row['attachment']);
+                                ?>
+                                <tr class="ann-row" data-id="<?php echo $row['announcement_id']; ?>">
+                                    <td class="id-cell">#<?php echo htmlspecialchars($row['announcement_id']); ?></td>
+                                    <td style="color: #fff; font-weight: 600;" class="title-cell"><?php echo htmlspecialchars($row['title']); ?></td>
+                                    <td style="color: var(--text-dim);"><?php echo $dateStr; ?></td>
+                                    <td style="text-align: center; color: var(--text-dim);"><?php echo intval($row['comment_count']); ?></td>
+                                    <td style="text-align: center;">
+                                        <?php if ($hasAttachment): ?>
+                                            <i class="fas fa-paperclip" style="color: #C084FC;"></i>
                                         <?php else: ?>
-                                            <!-- Display Download Link for Non-Image Files -->
-                                            <a href="<?php echo $file_path; ?>" 
-                                            download="<?php echo htmlspecialchars($row['attachment']); ?>" 
-                                            class="text-blue-500 hover:text-blue-700 underline">
-                                                <?php echo htmlspecialchars($row['attachment']); ?>
-                                            </a>
+                                            <span style="color: rgba(255,255,255,0.15);">—</span>
                                         <?php endif; ?>
-                                    </div>
-                                <?php endif; ?>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: var(--text-dim); padding: 40px 0;">
+                                        <i class="fas fa-bullhorn" style="font-size: 32px; opacity: 0.3; margin-bottom: 12px; display: block;"></i>
+                                        No announcements found
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
 
-                                <div class="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
-                                    <button class="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors" 
-                                            onclick="toggleComments(<?php echo $row['announcement_id']; ?>)">
-                                        <i class="fas fa-comment"></i>
-                                        <span>Comments</span>
-                                    </button>
-                                </div>
-
-                                <!-- Comments Section (Hidden by default) -->
-                                <div id="comments-<?php echo $row['announcement_id']; ?>" class="comments-section mt-4 hidden">
-                                    <div class="comment-form mb-3">
-                                        <textarea class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                                                  id="commentText-<?php echo $row['announcement_id']; ?>" 
-                                                  rows="2" 
-                                                  placeholder="Write a comment..."></textarea>
-                                        <button class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors" 
-                                                onclick="addComment(<?php echo $row['announcement_id']; ?>)">
-                                            Post Comment
-                                        </button>
-                                    </div>
-                                    <div id="commentsList-<?php echo $row['announcement_id']; ?>" class="comments-list space-y-4">
-                                        <!-- Comments will be loaded here -->
-                                    </div>
-                                </div>
+                <!-- Pagination Controls -->
+                <?php if ($total_rows > 0): ?>
+                    <?php
+                    $start_entry = $total_rows == 0 ? 0 : $offset + 1;
+                    $end_entry = min($offset + $limit, $total_rows);
+                    ?>
+                    <div class="pagination-row" style="margin-top: 16px; padding: 0 4px;">
+                        <div class="pagination-info" style="color: var(--text-dim); font-size: 13px;">
+                            Showing <?php echo $start_entry; ?> to <?php echo $end_entry; ?> of <?php echo $total_rows; ?> entries
+                        </div>
+                        <?php if ($total_pages > 1): ?>
+                            <div class="pagination-controls" style="display: flex; align-items: center; gap: 6px;">
+                                <!-- Prev Link -->
+                                <a class="page-btn <?php echo ($page_num <= 1) ? 'disabled pointer-events-none opacity-50' : ''; ?>" 
+                                   href="?page=<?php echo $page_num - 1; ?>&sort=<?php echo $sort; ?>&search=<?php echo urlencode($search); ?>"
+                                   style="text-decoration: none;">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                                
+                                <!-- Page Numbers -->
+                                <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                                    <a class="page-btn <?php echo ($page_num == $i) ? 'active' : ''; ?>" 
+                                       href="?page=<?php echo $i; ?>&sort=<?php echo $sort; ?>&search=<?php echo urlencode($search); ?>"
+                                       style="text-decoration: none;">
+                                        <?php echo $i; ?>
+                                    </a>
+                                <?php endfor; ?>
+                                
+                                <!-- Next Link -->
+                                <a class="page-btn <?php echo ($page_num >= $total_pages) ? 'disabled pointer-events-none opacity-50' : ''; ?>" 
+                                   href="?page=<?php echo $page_num + 1; ?>&sort=<?php echo $sort; ?>&search=<?php echo urlencode($search); ?>"
+                                   style="text-decoration: none;">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
                             </div>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <p class="text-gray-600 text-center">No announcements found.</p>
-                    <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- Announcement Detail Modal -->
+    <div id="annModal" class="modal-overlay">
+        <div class="modal-box" style="max-width: 600px; display: flex; flex-direction: column; max-height: 85vh; padding: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                <h2 style="margin: 0; font-family: var(--font-h); font-size: 15px; color: #fff; letter-spacing: 1px;">ANNOUNCEMENT DETAILS</h2>
+                <button onclick="closeModal()" style="background: none; border: none; color: var(--text-dim); font-size: 18px; cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-dim)'">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div style="flex: 1; overflow-y: auto; padding-right: 4px;" class="main-content-scroll">
+                <!-- Author and Date Header -->
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                    <div id="modalAvatar" class="ann-author-avatar" style="width: 44px; height: 44px;">
+                        <!-- JS inserted avatar -->
+                    </div>
+                    <div>
+                        <p id="modalAuthorName" style="font-size: 13px; font-weight: 600; color: #fff; margin: 0;"></p>
+                        <p id="modalPublishDate" style="font-size: 11px; color: var(--text-dim); margin: 0;"></p>
+                    </div>
+                </div>
+                
+                <!-- Title & Body -->
+                <h3 id="modalTitle" style="font-family: var(--font-h); font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 12px; line-height: 1.4;"></h3>
+                <div id="modalBody" style="font-size: 14px; color: var(--text-body); line-height: 1.6; margin-bottom: 20px; word-break: break-word;"></div>
+                
+                <!-- Attachment -->
+                <div id="modalAttachmentContainer" style="margin-bottom: 24px; display: none;">
+                    <h4 style="font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Attachment</h4>
+                    <div id="modalAttachmentContent"></div>
+                </div>
+
+                <!-- Announcement Likes Row -->
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                    <button id="modalLikePostBtn" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: var(--text-dim); padding: 8px 16px; border-radius: 10px; font-size: 13px; cursor: pointer; transition: all 0.3s;" onmouseover="this.style.borderColor='var(--purple-glow)'" onmouseout="this.style.borderColor='var(--border)'">
+                        <i class="far fa-heart" id="modalLikePostIcon"></i> Like (<span id="modalPostLikesCount">0</span>)
+                    </button>
+                </div>
+                
+                <!-- Comments Section -->
+                <div style="border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px;">
+                    <h4 style="font-family: var(--font-h); font-size: 13px; font-weight: 700; color: #fff; letter-spacing: 0.5px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+                        <i class="far fa-comments" style="color: #D4870A;"></i> COMMENTS (<span id="modalCommentsCount">0</span>)
+                    </h4>
+                    
+                    <!-- Write Comment -->
+                    <div style="margin-bottom: 16px;">
+                        <textarea id="modalCommentText" class="comment-area" placeholder="Write a comment…" style="min-height: 60px; font-size: 13px;"></textarea>
+                        <button id="modalPostCommentBtn" class="btn-comment" style="display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 8px 16px;">
+                            <i class="fas fa-paper-plane"></i> Post Comment
+                        </button>
+                    </div>
+                    
+                    <!-- Comments List -->
+                    <div id="modalCommentsList" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- JS inserted comments -->
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const searchInput = document.querySelector('input[type="text"]');
-        const sortButton = document.getElementById('sortButton');
-        const sortDropdown = document.getElementById('sortDropdown');
-        const sortOptions = sortDropdown.querySelectorAll('a');
-        const announcementContainer = document.querySelector('.main-con'); // Holds both search & announcements
-        const announcementCards = document.querySelectorAll('.bg-white.rounded-lg.shadow.p-6.mb-4');
+    // Announcements JSON Data
+    const announcementsData = <?php echo json_encode($announcements); ?>;
 
-        // Keep a reference to the original search & filter UI
-        const filterSection = document.querySelector('.flex.items-center.space-x-4.mb-6');
+    // Star canvas
+    (function(){const c=document.getElementById('star-canvas'),ctx=c.getContext('2d');let W,H,stars=[];function resize(){W=c.width=window.innerWidth;H=c.height=window.innerHeight;}window.addEventListener('resize',resize);resize();for(let i=0;i<120;i++)stars.push({x:Math.random()*9999,y:Math.random()*9999,r:Math.random()*1.2+0.3,a:Math.random(),da:(Math.random()*0.003+0.001)*(Math.random()<.5?1:-1)});function draw(){ctx.clearRect(0,0,W,H);stars.forEach(s=>{s.a+=s.da;if(s.a<=0||s.a>=1)s.da*=-1;ctx.beginPath();ctx.arc(s.x%W,s.y%H,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(200,180,255,${s.a.toFixed(2)})`;ctx.fill();});requestAnimationFrame(draw);}draw();})();
 
-        // Toggle dropdown menu visibility
-        sortButton.addEventListener('click', function (e) {
-            e.stopPropagation();
-            sortDropdown.classList.toggle('hidden');
-        });
-
-        // Prevent dropdown from closing when clicking inside it
-        sortDropdown.addEventListener('click', function (e) {
-            e.stopPropagation();
-        });
-
-        // Close dropdown when clicking outside
-        document.addEventListener('click', function (e) {
-            if (!sortButton.contains(e.target) && !sortDropdown.contains(e.target)) {
-                sortDropdown.classList.add('hidden');
-            }
-        });
-
-        // Search Functionality
-        searchInput.addEventListener('input', function () {
-            const searchTerm = this.value.toLowerCase();
-            announcementCards.forEach(card => {
-                const title = card.querySelector('h2').textContent.toLowerCase();
-                const description = card.querySelector('p.text-gray-700').textContent.toLowerCase();
-
-                if (title.includes(searchTerm) || description.includes(searchTerm)) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-        });
-
-        // Sort Functionality
-        sortOptions.forEach(option => {
-            option.addEventListener('click', function (e) {
-                e.preventDefault();
-                sortDropdown.classList.add('hidden'); // Hide dropdown after selection
-
-                const sortOption = this.getAttribute('data-sort');
-                const cardsArray = Array.from(announcementCards);
-
-                cardsArray.sort((a, b) => {
-                    const titleA = a.querySelector('h2').textContent.toLowerCase();
-                    const titleB = b.querySelector('h2').textContent.toLowerCase();
-                    const dateA = new Date(a.querySelector('p.text-sm.text-gray-500').textContent);
-                    const dateB = new Date(b.querySelector('p.text-sm.text-gray-500').textContent);
-
-                    switch (sortOption) {
-                        case 'A-Z':
-                            return titleA.localeCompare(titleB);
-                        case 'Z-A':
-                            return titleB.localeCompare(titleA);
-                        case 'Newest':
-                            return dateB - dateA;
-                        case 'Oldest':
-                            return dateA - dateB;
-                        default:
-                            return 0;
-                    }
-                });
-
-                // Clear only announcement cards (preserving search and sort UI)
-                announcementContainer.innerHTML = ''; // Remove all content
-                announcementContainer.appendChild(filterSection); // Re-add search & sort UI
-
-                // Re-append sorted cards
-                cardsArray.forEach(card => announcementContainer.appendChild(card));
-            });
-        });
-    });
-
-    let currentAnnouncementId = null;
-
-    function viewAnnouncement(id) {
-        currentAnnouncementId = id;
-        fetch(`get_post.php?announcement_id=${id}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.announcement_id) {
-                    document.getElementById('viewAnnouncementTitle').textContent = data.title;
-                    document.getElementById('viewAnnouncementDate').textContent = new Date(data.created_at).toLocaleString();
-                    document.getElementById('viewAnnouncementContent').innerHTML = data.description;
-                    
-                    // Load comments
-                    loadComments(id);
-                    
-                    new bootstrap.Modal(document.getElementById('viewAnnouncementModal')).show();
-                }
-            });
-    }
-
-    function toggleComments(announcementId) {
-        const commentsSection = document.getElementById(`comments-${announcementId}`);
-        commentsSection.classList.toggle('hidden');
-        
-        if (!commentsSection.classList.contains('hidden')) {
-            loadComments(announcementId);
+    // Search Redirect
+    function handleSearchKeyPress(event) {
+        if (event.key === "Enter") {
+            const val = document.getElementById("annSearch").value.trim();
+            window.location.href = `?page=1&sort=<?php echo $sort; ?>&search=${encodeURIComponent(val)}`;
         }
     }
 
-    function loadComments(announcementId) {
-        const formData = new FormData();
-        formData.append('action', 'get');
-        formData.append('announcement_id', announcementId);
+    // Sort Dropdown
+    function toggleSortDropdown(event) {
+        event.stopPropagation();
+        const menu = document.getElementById('sortMenu');
+        menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    }
+    document.addEventListener('click', () => {
+        const menu = document.getElementById('sortMenu');
+        if (menu) menu.style.display = 'none';
+    });
 
-        fetch('Admin/comment_operations.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const commentsList = document.getElementById(`commentsList-${announcementId}`);
-                commentsList.innerHTML = '';
+    // Open Modal with Details
+    document.querySelectorAll('.ann-row').forEach(row => {
+        row.addEventListener('click', function() {
+            const id = parseInt(this.dataset.id);
+            const ann = announcementsData.find(a => parseInt(a.announcement_id) === id);
+            if (!ann) return;
+            
+            // Populate Modal Fields
+            document.getElementById('modalAuthorName').innerHTML = `${ann.firstname} ${ann.lastname} <span style="color:rgba(139,63,217,0.8);font-size:11px;margin-left:6px;">· Admin</span>`;
+            document.getElementById('modalPublishDate').textContent = new Date(ann.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            document.getElementById('modalTitle').textContent = ann.title;
+            document.getElementById('modalBody').innerHTML = ann.description.replace(/\n/g, '<br>');
+            
+            // Author Avatar
+            const avatarDiv = document.getElementById('modalAvatar');
+            if (ann.profile_picture) {
+                avatarDiv.innerHTML = `<img src="upload/${ann.profile_picture}" style="width:100%;height:100%;object-fit:cover;">`;
+            } else {
+                const initials = (ann.firstname.substring(0,1) + ann.lastname.substring(0,1)).toUpperCase();
+                avatarDiv.innerHTML = `<span style="font-size:14px;font-weight:700;color:#C084FC;">${initials}</span>`;
+            }
+            
+            // Attachment Rendering
+            const attachContainer = document.getElementById('modalAttachmentContainer');
+            const attachContent = document.getElementById('modalAttachmentContent');
+            if (ann.attachment) {
+                attachContainer.style.display = 'block';
+                const fileExt = ann.attachment.split('.').pop().toLowerCase();
+                const imgExts = ['jpg','jpeg','png','gif','bmp','webp'];
+                if (imgExts.includes(fileExt)) {
+                    attachContent.innerHTML = `<img src="announce/${ann.attachment}" style="width:100%; max-height:280px; object-fit:contain; border-radius:8px; border:1px solid var(--border);">`;
+                } else {
+                    attachContent.innerHTML = `
+                        <a href="announce/${ann.attachment}" download
+                           style="display:inline-flex;align-items:center;gap:8px;background:rgba(139,63,217,0.12);border:1px solid rgba(139,63,217,0.25);color:#C084FC;padding:8px 16px;border-radius:10px;font-size:13px;text-decoration:none;font-weight:600;transition:all 0.3s;" onmouseover="this.style.background='rgba(139,63,217,0.22)'" onmouseout="this.style.background='rgba(139,63,217,0.12)'">
+                            <i class="fas fa-file-download"></i> Download ${ann.attachment}
+                        </a>
+                    `;
+                }
+            } else {
+                attachContainer.style.display = 'none';
+            }
+            
+            // Comments Count
+            document.getElementById('modalCommentsCount').textContent = ann.comment_count;
+
+            // Load Announcement Likes
+            loadAnnouncementLikes(ann.announcement_id);
+            
+            // Toggle Announcement Like Callback
+            const likePostBtn = document.getElementById('modalLikePostBtn');
+            likePostBtn.onclick = function() {
+                const fd = new FormData();
+                fd.append('action', 'like_announcement');
+                fd.append('announcement_id', ann.announcement_id);
                 
-                data.comments.forEach(comment => {
-                    const commentElement = createCommentElement(comment);
-                    commentsList.appendChild(commentElement);
+                fetch('Admin/comment_operations.php', { method: 'POST', body: fd })
+                .then(r => r.json()).then(data => {
+                    if (data.success) {
+                        loadAnnouncementLikes(ann.announcement_id);
+                    }
                 });
+            };
+            
+            // Post Comment Callback
+            const postBtn = document.getElementById('modalPostCommentBtn');
+            postBtn.onclick = function() {
+                const text = document.getElementById('modalCommentText').value.trim();
+                if(!text) return;
+                const fd = new FormData();
+                fd.append('action', 'add');
+                fd.append('announcement_id', ann.announcement_id);
+                fd.append('comment_text', text);
+                
+                fetch('Admin/comment_operations.php', { method: 'POST', body: fd })
+                .then(r => r.json()).then(data => {
+                    if (data.success) {
+                        document.getElementById('modalCommentText').value = '';
+                        ann.comment_count = parseInt(ann.comment_count) + 1;
+                        document.getElementById('modalCommentsCount').textContent = ann.comment_count;
+                        
+                        // Update table row comments cell real-time
+                        const tableRow = document.querySelector(`.ann-row[data-id="${ann.announcement_id}"]`);
+                        if (tableRow) {
+                            const cells = tableRow.querySelectorAll('td');
+                            if (cells.length >= 4) {
+                                cells[3].textContent = ann.comment_count;
+                            }
+                        }
+                        
+                        loadCommentsForModal(ann.announcement_id);
+                    }
+                });
+            };
+            
+            // Load Comments
+            loadCommentsForModal(ann.announcement_id);
+            
+            // Open Modal
+            document.getElementById('annModal').classList.add('show');
+        });
+    });
+
+    function closeModal() {
+        document.getElementById('annModal').classList.remove('show');
+        document.getElementById('modalCommentText').value = '';
+    }
+    
+    // Close modal on click outside box
+    document.getElementById('annModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeModal();
+        }
+    });
+
+    function loadAnnouncementLikes(id) {
+        const fd = new FormData();
+        fd.append('action', 'get_announcement_like');
+        fd.append('announcement_id', id);
+        
+        fetch('Admin/comment_operations.php', { method: 'POST', body: fd })
+        .then(r => r.json()).then(data => {
+            if (!data.success) return;
+            document.getElementById('modalPostLikesCount').textContent = data.like_count;
+            const btn = document.getElementById('modalLikePostBtn');
+            const icon = document.getElementById('modalLikePostIcon');
+            if (data.user_liked) {
+                icon.className = 'fas fa-heart';
+                icon.style.color = '#ef4444';
+                btn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                btn.style.background = 'rgba(239, 68, 68, 0.08)';
+                btn.style.color = '#ef4444';
+            } else {
+                icon.className = 'far fa-heart';
+                icon.style.color = '';
+                btn.style.borderColor = 'var(--border)';
+                btn.style.background = 'rgba(255,255,255,0.03)';
+                btn.style.color = 'var(--text-dim)';
             }
         });
     }
 
-    function createCommentElement(comment) {
+    function loadCommentsForModal(id) {
+        const fd = new FormData();
+        fd.append('action', 'get');
+        fd.append('announcement_id', id);
+        
+        fetch('Admin/comment_operations.php', { method: 'POST', body: fd })
+        .then(r => r.json()).then(data => {
+            if(!data.success) return;
+            const list = document.getElementById('modalCommentsList');
+            list.innerHTML = '';
+            
+            if (data.comments.length > 0) {
+                const parents = data.comments.filter(c => c.parent_id === null);
+                const replies = data.comments.filter(c => c.parent_id !== null);
+                
+                parents.forEach(c => {
+                    list.appendChild(buildComment(c, id));
+                });
+                
+                replies.forEach(r => {
+                    const parentRepliesList = document.getElementById(`replies-list-${r.parent_id}`);
+                    if (parentRepliesList) {
+                        parentRepliesList.appendChild(buildReply(r, id));
+                    }
+                });
+            } else {
+                list.innerHTML = '<div style="text-align:center; padding:20px 0; color:var(--text-dim); font-size:12px;">No comments yet. Be the first to comment!</div>';
+            }
+        });
+    }
+
+    function buildComment(c, announcementId) {
         const div = document.createElement('div');
-        div.className = 'comment-item bg-gray-50 rounded-lg p-3';
+        div.className = 'comment-item';
+        div.style.marginBottom = '16px';
         div.innerHTML = `
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-3 flex-grow">
-                    <img src="${comment.profile_picture ? 'upload/' + comment.profile_picture : 'assets/img/default-avatar.png'}" 
-                         class="w-10 h-10 rounded-full object-cover border-2 border-gray-200">
-                    <div class="flex-grow">
-                        <div class="flex items-center space-x-2">
-                            <strong>${comment.firstname} ${comment.middlename ? comment.middlename + ' ' : ''}${comment.lastname}</strong>
-                            <span class="text-sm text-gray-500">${comment.role}</span>
-                            ${(comment.user_id == <?php echo $_SESSION['user_id']; ?> || <?php echo $_SESSION['role'] === 'admin' ? 'true' : 'false'; ?>) ? 
-                                `<div class="relative ml-auto">
-                                    <button class="text-gray-500 hover:text-gray-700 focus:outline-none" onclick="toggleCommentMenu(${comment.comment_id})">
-                                        <i class="fas fa-ellipsis-v"></i>
-                                    </button>
-                                    <div id="commentMenu-${comment.comment_id}" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
-                                        <div class="py-1">
-                                            <button onclick="editComment(${comment.comment_id}, ${comment.announcement_id})" 
-                                                    class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                                <i class="fas fa-edit mr-2"></i>Edit
-                                            </button>
-                                            <button onclick="deleteComment(${comment.comment_id}, ${comment.announcement_id})" 
-                                                    class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
-                                                <i class="fas fa-trash mr-2"></i>Delete
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>` : ''}
-                        </div>
-                        <div class="text-sm text-gray-500">${new Date(comment.created_at).toLocaleString()}</div>
-                    </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;background:rgba(139,63,217,0.15);display:flex;align-items:center;justify-content:center;border:1px solid rgba(139,63,217,0.3);">
+                    ${c.profile_picture ? `<img src="upload/${c.profile_picture}" style="width:100%;height:100%;object-fit:cover;">` : `<svg viewBox="0 0 24 24" style="width:100%;height:100%;fill:#C084FC;padding:4px;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`}
+                </div>
+                <div>
+                    <span style="font-size:13px;font-weight:600;color:#fff;">${c.firstname} ${c.lastname}</span>
+                    <span style="font-size:11px;color:rgba(139,63,217,0.8);margin-left:6px;">${c.role}</span>
+                    <div style="font-size:11px;color:var(--text-dim);">${new Date(c.created_at).toLocaleString()}</div>
                 </div>
             </div>
-            <p class="mt-2 ml-13" id="comment-text-${comment.comment_id}">${comment.comment_text}</p>
+            <p id="comment-text-${c.comment_id}" style="font-size:13px;color:#D1C7E0;line-height:1.6;margin:0 0 8px 0;">${c.comment_text}</p>
+            
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;">
+                <button onclick="toggleCommentLike(${c.comment_id}, ${announcementId})" style="background:none;border:none;display:flex;align-items:center;gap:6px;font-size:12px;color:${parseInt(c.user_liked) ? '#ef4444' : 'var(--text-dim)'};cursor:pointer;transition:color 0.2s;">
+                    <i class="${parseInt(c.user_liked) ? 'fas' : 'far'} fa-heart" style="${parseInt(c.user_liked) ? 'color:#ef4444;' : ''}"></i> Like (${c.like_count || 0})
+                </button>
+                <button onclick="toggleReplyForm(${c.comment_id})" style="background:none;border:none;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);cursor:pointer;transition:color 0.2s;">
+                    <i class="far fa-comment"></i> Reply
+                </button>
+            </div>
+            
+            <!-- Reply Form -->
+            <div id="reply-form-${c.comment_id}" style="display:none; margin-top:10px; margin-left:14px; padding-left:14px; border-left:2px solid rgba(139,63,217,0.3);">
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="text" id="reply-input-${c.comment_id}" placeholder="Reply to this comment…" class="search-bar" style="height:36px; padding:6px 12px; font-size:12px;">
+                    <button onclick="postCommentReply(${c.comment_id}, ${announcementId})" class="btn-comment" style="padding:6px 12px; font-size:11px; margin-top:0;">Send</button>
+                </div>
+            </div>
+            
+            <!-- Replies List Container -->
+            <div id="replies-list-${c.comment_id}" style="margin-top:10px; margin-left:14px; padding-left:14px; border-left:2px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; gap:10px;"></div>
         `;
         return div;
     }
 
-    function toggleCommentMenu(commentId) {
-        const menu = document.getElementById(`commentMenu-${commentId}`);
-        menu.classList.toggle('hidden');
+    function buildReply(r, announcementId) {
+        const div = document.createElement('div');
+        div.className = 'comment-item reply-item';
+        div.style.background = 'rgba(255,255,255,0.01)';
+        div.style.padding = '8px 12px';
+        div.style.borderRadius = '8px';
+        div.innerHTML = `
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                <div style="width:26px;height:26px;border-radius:50%;overflow:hidden;background:rgba(139,63,217,0.15);display:flex;align-items:center;justify-content:center;border:1px solid rgba(139,63,217,0.3);">
+                    ${r.profile_picture ? `<img src="upload/${r.profile_picture}" style="width:100%;height:100%;object-fit:cover;">` : `<svg viewBox="0 0 24 24" style="width:100%;height:100%;fill:#C084FC;padding:3px;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`}
+                </div>
+                <div>
+                    <span style="font-size:12px;font-weight:600;color:#fff;">${r.firstname} ${r.lastname}</span>
+                    <span style="font-size:10px;color:rgba(139,63,217,0.8);margin-left:6px;">${r.role}</span>
+                    <div style="font-size:10px;color:var(--text-dim);">${new Date(r.created_at).toLocaleString()}</div>
+                </div>
+            </div>
+            <p id="comment-text-${r.comment_id}" style="font-size:12px;color:#D1C7E0;line-height:1.5;margin:0 0 6px 0;">${r.comment_text}</p>
+            
+            <div style="display:flex;align-items:center;gap:14px;">
+                <button onclick="toggleCommentLike(${r.comment_id}, ${announcementId})" style="background:none;border:none;display:flex;align-items:center;gap:6px;font-size:11px;color:${parseInt(r.user_liked) ? '#ef4444' : 'var(--text-dim)'};cursor:pointer;transition:color 0.2s;">
+                    <i class="${parseInt(r.user_liked) ? 'fas' : 'far'} fa-heart" style="${parseInt(r.user_liked) ? 'color:#ef4444;' : ''}"></i> Like (${r.like_count || 0})
+                </button>
+            </div>
+        `;
+        return div;
+    }
+
+    function toggleCommentLike(commentId, announcementId) {
+        const fd = new FormData();
+        fd.append('action', 'like_comment');
+        fd.append('comment_id', commentId);
         
-        // Close other open menus
-        document.querySelectorAll('[id^="commentMenu-"]').forEach(otherMenu => {
-            if (otherMenu.id !== `commentMenu-${commentId}`) {
-                otherMenu.classList.add('hidden');
+        fetch('Admin/comment_operations.php', { method: 'POST', body: fd })
+        .then(r => r.json()).then(data => {
+            if (data.success) {
+                loadCommentsForModal(announcementId);
             }
         });
     }
 
-    // Close menus when clicking outside
-    document.addEventListener('click', function(event) {
-        if (!event.target.closest('[id^="commentMenu-"]') && !event.target.closest('.fa-ellipsis-v')) {
-            document.querySelectorAll('[id^="commentMenu-"]').forEach(menu => {
-                menu.classList.add('hidden');
-            });
+    function toggleReplyForm(commentId) {
+        const form = document.getElementById(`reply-form-${commentId}`);
+        if (form) {
+            form.style.display = form.style.display === 'block' ? 'none' : 'block';
+            if (form.style.display === 'block') {
+                document.getElementById(`reply-input-${commentId}`).focus();
+            }
         }
-    });
+    }
 
-    function editComment(commentId, announcementId) {
-        const commentTextElement = document.getElementById(`comment-text-${commentId}`);
-        const currentText = commentTextElement.textContent;
-        const newText = prompt('Edit your comment:', currentText);
+    function postCommentReply(parentCommentId, announcementId) {
+        const input = document.getElementById(`reply-input-${parentCommentId}`);
+        const text = input.value.trim();
+        if (!text) return;
         
-        if (newText === null) return; // User cancelled
-        if (newText.trim() === '') {
-            alert('Comment cannot be empty');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('action', 'edit');
-        formData.append('comment_id', commentId);
-        formData.append('comment_text', newText);
-
-        fetch('Admin/comment_operations.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
+        const fd = new FormData();
+        fd.append('action', 'add');
+        fd.append('announcement_id', announcementId);
+        fd.append('comment_text', text);
+        fd.append('parent_id', parentCommentId);
+        
+        fetch('Admin/comment_operations.php', { method: 'POST', body: fd })
+        .then(r => r.json()).then(data => {
             if (data.success) {
-                commentTextElement.textContent = newText;
-                // Close the menu after successful edit
-                document.getElementById(`commentMenu-${commentId}`).classList.add('hidden');
-            } else {
-                alert('Failed to edit comment: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while editing the comment');
-        });
-    }
-
-    function addComment(announcementId) {
-        const commentText = document.getElementById(`commentText-${announcementId}`).value.trim();
-        if (!commentText) return;
-
-        const formData = new FormData();
-        formData.append('action', 'add');
-        formData.append('announcement_id', announcementId);
-        formData.append('comment_text', commentText);
-
-        fetch('Admin/comment_operations.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                document.getElementById(`commentText-${announcementId}`).value = '';
-                const commentsList = document.getElementById(`commentsList-${announcementId}`);
-                const commentElement = createCommentElement(data.comment);
-                commentsList.insertBefore(commentElement, commentsList.firstChild);
-            }
-        });
-    }
-
-    function deleteComment(commentId, announcementId) {
-        if (!confirm('Are you sure you want to delete this comment?')) return;
-
-        const formData = new FormData();
-        formData.append('action', 'delete');
-        formData.append('comment_id', commentId);
-
-        fetch('Admin/comment_operations.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                loadComments(announcementId);
+                input.value = '';
+                loadCommentsForModal(announcementId);
+                
+                // Update table comments count
+                const tableRow = document.querySelector(`.ann-row[data-id="${announcementId}"]`);
+                if (tableRow) {
+                    const cells = tableRow.querySelectorAll('td');
+                    if (cells.length >= 4) {
+                        const newCount = parseInt(cells[3].textContent) + 1;
+                        cells[3].textContent = newCount;
+                        document.getElementById('modalCommentsCount').textContent = newCount;
+                    }
+                }
             }
         });
     }

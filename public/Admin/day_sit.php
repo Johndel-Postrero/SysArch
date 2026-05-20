@@ -48,6 +48,7 @@ $conn->close();
         };
     </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="../css/student-dark.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
     <!-- Include Chart.js -->
@@ -108,7 +109,7 @@ $conn->close();
         }
     </style>
 </head>
-<body class="bg-gray-100 font-sans antialiased">
+<body class="bg-[#0D0B1A] font-sans antialiased text-white">
     <div class="flex h-screen">
         <!-- Include Sidebar -->
         <?php include 'sidebarad.php'; ?>
@@ -121,10 +122,10 @@ $conn->close();
                 <div class="w-full max-w-6xl">
                     <!-- Pie Charts -->
                     <div class="chart-container">
-                        <div class="chart">
+                        <div class="chart" style="background:rgba(22,19,38,0.6);border:1px solid rgba(139,63,217,0.2);">
                             <canvas id="purposeChart"></canvas>
                         </div>
-                        <div class="chart">
+                        <div class="chart" style="background:rgba(22,19,38,0.6);border:1px solid rgba(139,63,217,0.2);">
                             <canvas id="labChart"></canvas>
                         </div>
                     </div>
@@ -185,50 +186,51 @@ $conn->close();
                     </div>
 
                     <!-- Table -->
-                    <div class="overflow-x-auto">
-                        <table id="sitinTable" class="min-w-full bg-white shadow-md rounded-lg">
+                  <div class="content-card">
+                    <div class="dark-table-wrap">
+                        <table id="sitinTable" class="dark-table">
                             <thead>
-                                <tr class="bg-[#002044] text-white">
-                                    <th class="py-4 px-4 text-center">SIT ID NUMBER</th>
-                                    <th class="py-4 px-4 text-center">ID NUMBER</th>
-                                    <th class="py-4 px-4 text-center">NAME</th>
-                                    <th class="py-4 px-4 text-center">PURPOSE</th>
-                                    <th class="py-4 px-4 text-center">LAB</th>
-                                    <th class="py-4 px-4 text-center">LOGIN</th>
-                                    <th class="py-4 px-4 text-center">LOGOUT</th>
-                                    <th class="py-4 px-4 text-center">DATE</th>
-                                    <th class="py-4 px-4 text-center">ACTION</th>
+                                <tr>
+                                    <th>SIT ID NUMBER</th>
+                                    <th>ID NUMBER</th>
+                                    <th>NAME</th>
+                                    <th>PURPOSE</th>
+                                    <th>LAB</th>
+                                    <th>LOGIN</th>
+                                    <th>LOGOUT</th>
+                                    <th>DATE</th>
+                                    <th>ACTION</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (!empty($sitinData)): ?>
                                     <?php foreach ($sitinData as $index => $sitin): ?>
-                                        <tr class="<?php echo ($index % 2 === 0) ? 'bg-gray-100' : 'bg-gray-200'; ?>">
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['sitin_id']); ?></td>
-                                            <td class="py-4 px-4 font-semibold text-center"><?php echo htmlspecialchars($sitin['idno']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['lastname'] . ', ' . $sitin['firstname']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['purpose']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($sitin['lab_number']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('h:i:s A', strtotime($sitin['time_in']))); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('h:i:s A', strtotime($sitin['time_out']))); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('Y-m-d', strtotime($sitin['created_at']))); ?></td>
-                                            <td class="py-4 px-4 text-center">
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($sitin['sitin_id']); ?></td>
+                                            <td><span class="id-cell"><?php echo htmlspecialchars($sitin['idno']); ?></span></td>
+                                            <td><span class="name-text"><?php echo htmlspecialchars($sitin['lastname'] . ', ' . $sitin['firstname']); ?></span></td>
+                                            <td><?php echo htmlspecialchars($sitin['purpose']); ?></td>
+                                            <td><span class="lab-badge"><?php echo htmlspecialchars($sitin['lab_number']); ?></span></td>
+                                            <td><?php echo htmlspecialchars(date('h:i:s A', strtotime($sitin['time_in']))); ?></td>
+                                            <td><?php echo htmlspecialchars(date('h:i:s A', strtotime($sitin['time_out']))); ?></td>
+                                            <td><?php echo htmlspecialchars(date('Y-m-d', strtotime($sitin['created_at']))); ?></td>
+                                            <td>
                                                 <?php if (empty($sitin['reward_id'])): ?>
                                                     <button onclick="giveReward(<?php echo $sitin['sitin_id']; ?>, '<?php echo $sitin['idno']; ?>', '<?php echo $sitin['lastname']; ?>', '<?php echo $sitin['firstname']; ?>')" 
-                                                            class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded">
-                                                        Reward
+                                                            class="res-approve">
+                                                        <i class="fas fa-star"></i> Reward
                                                     </button>
                                                 <?php else: ?>
-                                                    <button disabled class="bg-gray-300 text-white px-3 py-1 rounded">
-                                                        Rewarded
+                                                    <button disabled class="res-decline" style="opacity:0.5;cursor:not-allowed;">
+                                                        <i class="fas fa-check"></i> Rewarded
                                                     </button>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr>
-                                        <td colspan="9" class="py-4 px-4 text-center">No data found</td>
+                                    <tr class="not-record">
+                                        <td colspan="9" style="text-align:center;padding:60px 20px;color:#9A8FB0;">No data found</td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -237,9 +239,10 @@ $conn->close();
                     
                     <!-- Pagination -->
                     <div class="flex justify-between items-center mt-4">
-                        <div class="text-gray-600" id="paginationInfo"></div>
+                        <div class="text-[#9A8FB0]" id="paginationInfo"></div>
                         <div class="flex space-x-2" id="paginationControls"></div>
                     </div>
+                  </div><!-- end content-card -->
                 </div>
             </div>      
         </div>
@@ -444,7 +447,7 @@ $conn->close();
             const paginationInfo = document.getElementById('paginationInfo');
             const paginationControls = document.getElementById('paginationControls');
             
-            if (entriesPerPage === "all" || showAll) {
+            if (entriesPerPage === "all" || showAll || totalPages <= 1) {
                 // Show all entries - hide pagination controls
                 paginationInfo.textContent = `Showing all ${totalVisible} entries`;
                 paginationControls.innerHTML = '';

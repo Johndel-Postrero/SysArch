@@ -26,7 +26,7 @@ try {
 
     // 1. Get reservation details with validation
     $reservationQuery = $conn->prepare("
-        SELECT r.idno, r.lab_number, r.reservation_date, r.time_in, r.purpose,
+        SELECT r.idno, r.lab_number, r.pc_number, r.reservation_date, r.time_in, r.purpose,
                TIMESTAMPDIFF(MINUTE, NOW(), TIMESTAMP(r.reservation_date, r.time_in)) AS minutes_remaining,
                TIMESTAMPDIFF(MINUTE, TIMESTAMP(r.reservation_date, r.time_in), NOW()) AS minutes_passed
         FROM reservations r
@@ -63,7 +63,7 @@ try {
 
     // 4. Check if this specific reservation already has a sit-in recorded
     $checkQuery = $conn->prepare("
-        SELECT id FROM sitin 
+        SELECT sitin_id FROM sitin 
         WHERE idno = ? AND lab_number = ? AND sitin_date = ? AND time_in = ?
     ");
     $checkQuery->bind_param("iiss", 
@@ -77,15 +77,29 @@ try {
     if ($checkQuery->get_result()->num_rows > 0) {
         throw new Exception("Sit-in already recorded for this reservation");
     }
+    $checkQuery->close();
+
+    // Check if the PC is currently occupied by another active sit-in in the same lab
+    $pcCheckQuery = $conn->prepare("
+        SELECT sitin_id FROM sitin 
+        WHERE lab_number = ? AND pc_number = ? AND time_out IS NULL
+    ");
+    $pcCheckQuery->bind_param("ii", $reservation['lab_number'], $reservation['pc_number']);
+    $pcCheckQuery->execute();
+    if ($pcCheckQuery->get_result()->num_rows > 0) {
+        throw new Exception("PC " . $reservation['pc_number'] . " in Lab " . $reservation['lab_number'] . " is currently occupied by another student.");
+    }
+    $pcCheckQuery->close();
 
     // 5. Record sit-in
     $insertQuery = $conn->prepare("
-        INSERT INTO sitin (idno, lab_number, purpose, sitin_date, time_in, time_out)
-        VALUES (?, ?, ?, ?, ?, NULL)
+        INSERT INTO sitin (idno, lab_number, pc_number, purpose, sitin_date, time_in, time_out)
+        VALUES (?, ?, ?, ?, ?, ?, NULL)
     ");
-    $insertQuery->bind_param("iisss", 
+    $insertQuery->bind_param("iiisss", 
         $reservation['idno'], 
         $reservation['lab_number'], 
+        $reservation['pc_number'], 
         $reservation['purpose'], 
         $reservation['reservation_date'], 
         $reservation['time_in']

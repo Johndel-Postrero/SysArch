@@ -12,7 +12,6 @@ try {
     // Start transaction
     $conn->begin_transaction();
 
-    // Get approved reservations that need to be auto-timed in
     $query = "SELECT r.*, u.user_id 
               FROM reservations r 
               JOIN users u ON r.idno = u.idno 
@@ -23,9 +22,13 @@ try {
               AND NOT EXISTS (
                   SELECT 1 FROM sitin s 
                   WHERE s.idno = r.idno 
-                  AND s.lab_number = r.lab_number 
-                  AND s.sitin_date = r.reservation_date 
                   AND s.time_out IS NULL
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM sitin s2
+                  WHERE s2.lab_number = r.lab_number
+                  AND s2.pc_number = r.pc_number
+                  AND s2.time_out IS NULL
               )";
 
     $stmt = $conn->prepare($query);
@@ -44,26 +47,15 @@ try {
     $stmt->close();
 
     foreach ($reservations as $reservation) {
-        // Mark PC as unavailable
-        $updatePcStatus = $conn->prepare("UPDATE lab_pcs SET status = 'unavailable' WHERE lab_number = ? AND pc_number = ?");
-        if (!$updatePcStatus) {
-            throw new Exception("Prepare failed: " . $conn->error);
-        }
-        $updatePcStatus->bind_param("ii", $reservation['lab_number'], $reservation['pc_number']);
-        
-        if (!$updatePcStatus->execute()) {
-            throw new Exception("Failed to update PC status: " . $updatePcStatus->error);
-        }
-        $updatePcStatus->close();
-
         // Record sit-in
-        $insertSitin = $conn->prepare("INSERT INTO sitin (idno, lab_number, sitin_date, time_in, purpose) VALUES (?, ?, ?, ?, ?)");
+        $insertSitin = $conn->prepare("INSERT INTO sitin (idno, lab_number, pc_number, sitin_date, time_in, purpose) VALUES (?, ?, ?, ?, ?, ?)");
         if (!$insertSitin) {
             throw new Exception("Prepare failed: " . $conn->error);
         }
-        $insertSitin->bind_param("iisss", 
+        $insertSitin->bind_param("iiisss", 
             $reservation['idno'],
             $reservation['lab_number'],
+            $reservation['pc_number'],
             $reservation['reservation_date'],
             $reservation['time_in'],
             $reservation['purpose']

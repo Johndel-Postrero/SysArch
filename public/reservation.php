@@ -11,10 +11,10 @@ if (!isset($_SESSION['login_user'])) {
     exit();
 }
 
-$username = $_SESSION['login_user'];
-$sql = "SELECT idno, lastname, firstname, session FROM users WHERE username = ?";
+$idno = $_SESSION['login_user'];
+$sql = "SELECT user_id, idno, lastname, firstname, session FROM users WHERE idno = ?";
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("s", $username);
+$stmt->bind_param("s", $idno);
 $stmt->execute();
 $result = $stmt->get_result();
 $user = $result->fetch_assoc();
@@ -25,8 +25,15 @@ if (!$user) {
     exit();
 }
 
+$activeSitinCheck = $conn->prepare("SELECT sitin_id FROM sitin WHERE idno = ? AND time_out IS NULL");
+$activeSitinCheck->bind_param("s", $idno);
+$activeSitinCheck->execute();
+$activeSitinResult = $activeSitinCheck->get_result();
+$hasActiveSitin = ($activeSitinResult->num_rows > 0);
+$activeSitinCheck->close();
+
 // Function to check upcoming reservations (5 minutes before)
-function checkUpcomingReservations($conn, $userId) {
+function checkUpcomingReservations($conn, $idno, $userId) {
     $now = new DateTime();
     $currentDate = $now->format('Y-m-d');
     $currentTime = $now->format('H:i:00');
@@ -53,7 +60,7 @@ function checkUpcomingReservations($conn, $userId) {
         )
     ");
     
-    $query->bind_param("isssis", $userId, $currentDate, $currentTime, $futureTime, $userId, $currentDate);
+    $query->bind_param("ssssis", $idno, $currentDate, $currentTime, $futureTime, $userId, $currentDate);
     $query->execute();
     $result = $query->get_result();
     
@@ -66,12 +73,11 @@ function checkUpcomingReservations($conn, $userId) {
 }
 
 // Handle AJAX requests for upcoming reservations
-// Handle AJAX requests for upcoming reservations
 if ($_SERVER["REQUEST_METHOD"] == "GET" && isset($_GET['check_upcoming'])) {
     header('Content-Type: application/json');
     
     try {
-        $upcomingReservations = checkUpcomingReservations($conn, $user['idno']);
+        $upcomingReservations = checkUpcomingReservations($conn, $user['idno'], $user['user_id']);
         $notifications = [];
         
         foreach ($upcomingReservations as $reservation) {
@@ -80,7 +86,7 @@ if ($_SERVER["REQUEST_METHOD"] == "GET" && isset($_GET['check_upcoming'])) {
                       "will start in 2 minutes at " . date('g:i A', strtotime($reservation['time_in']));
             
             // Save notification to database
-            saveStudentNotification($message, $user['idno'], $conn);
+            saveStudentNotification($message, $user['user_id'], $conn);
             
             $notifications[] = [
                 'message' => $message,
@@ -158,6 +164,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
         if ($user['session'] <= 0) {
             throw new Exception("You don't have enough sessions left");
         }
+
+        // Check if student is currently in an active sit-in session
+        $activeSitinCheck = $conn->prepare("SELECT sitin_id FROM sitin WHERE idno = ? AND time_out IS NULL");
+        $activeSitinCheck->bind_param("s", $idno);
+        $activeSitinCheck->execute();
+        $activeSitinCheck->store_result();
+        if ($activeSitinCheck->num_rows > 0) {
+            $activeSitinCheck->close();
+            throw new Exception("You cannot make a reservation while you are currently in an active sit-in session.");
+        }
+        $activeSitinCheck->close();
         
         if (date('w', strtotime($reservation_date)) == 0) {
             throw new Exception("Reservations are not allowed on Sundays");
@@ -168,7 +185,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
         }
         
         $checkQuery = $conn->prepare("SELECT reservation_id FROM reservations WHERE idno = ? AND reservation_date = ? AND time_in = ?");
-        $checkQuery->bind_param("iss", $idno, $reservation_date, $time_24hr);
+        $checkQuery->bind_param("sss", $idno, $reservation_date, $time_24hr);
         $checkQuery->execute();
         $checkQuery->store_result();
         
@@ -180,7 +197,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
             SELECT reservation_id FROM reservations 
             WHERE lab_number = ? AND pc_number = ? AND reservation_date = ? AND time_in = ?
         ");
-        $pcCheckQuery->bind_param("iiss", $lab_number, $pc_number, $reservation_date, $time_24hr);
+        $pcCheckQuery->bind_param("siss", $lab_number, $pc_number, $reservation_date, $time_24hr);
         $pcCheckQuery->execute();
         $pcCheckQuery->store_result();
         
@@ -192,7 +209,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
             SELECT status FROM lab_pcs 
             WHERE lab_number = ? AND pc_number = ?
         ");
-        $pcStatusQuery->bind_param("ii", $lab_number, $pc_number);
+        $pcStatusQuery->bind_param("si", $lab_number, $pc_number);
         $pcStatusQuery->execute();
         $pcStatusResult = $pcStatusQuery->get_result();
         
@@ -209,7 +226,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reserve'])) {
             INSERT INTO reservations (idno, lab_number, pc_number, reservation_date, time_in, purpose) 
             VALUES (?, ?, ?, ?, ?, ?)
         ");
-        $insertQuery->bind_param("iiisss", $idno, $lab_number, $pc_number, $reservation_date, $time_24hr, $purpose);
+        $insertQuery->bind_param("ssisss", $idno, $lab_number, $pc_number, $reservation_date, $time_24hr, $purpose);
 
         if ($insertQuery->execute()) {
             // Notify admin about new reservation request
@@ -236,777 +253,396 @@ $reservationsQuery = $conn->prepare("
     WHERE r.idno = ? 
     ORDER BY r.reservation_date DESC, r.time_in DESC
 ");
-$reservationsQuery->bind_param("i", $user['idno']);
+$reservationsQuery->bind_param("s", $user['idno']);
 $reservationsQuery->execute();
 $reservationsResult = $reservationsQuery->get_result();
 $reservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Reservations</title>
-    <script>
-        window.onpageshow = function(event) {
-            if (event.persisted) {
-                window.location.reload();
-            }
-        };
-    </script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reservations – CCS Sit-In</title>
+    <script>window.onpageshow=function(e){if(e.persisted)window.location.reload();};</script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="css/student-dark.css">
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <style>
-        .status-approved { color: green; font-weight: bold; }
-        .status-pending { color: orange; font-weight: bold; }
-        .status-rejected { color: red; font-weight: bold; }
-        .overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 1000;
-            overflow-y: auto;
-        }
-        .modal {
-            background: white;
-            margin: 2rem auto;
-            padding: 2rem;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 800px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .sidebar {
-            width: 5rem;
-            transition: all 0.3s ease-in-out;
-        }
-        .sidebar:hover { width: 16rem; }
-        .sidebar:hover .sidebar-text { display: inline; }
-        .sidebar-text { display: none; }
-        .sidebar a {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-        }
-        .sidebar:hover a { justify-content: flex-start; }
-        .sidebar i { font-size: 1.5rem; }
-        .main-content {
-            margin-left: 5rem;
-            transition: margin-left 0.3s ease-in-out;
-        }
-        .sidebar:hover + .main-content { margin-left: 16rem; }
-        input[type="time"] {
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            padding: 0.5rem;
-            width: 100%;
-        }
-        .header { z-index: 100; position: relative; }
-
-        .pc-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
-            margin-top: 10px;
-        }
-        .pc-item {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: center;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-        .pc-item:hover {
-            background-color: #f0f0f0;
-        }
-        .pc-item.selected {
-            background-color: #002044;
-            color: white;
-        }
-        .pc-item.unavailable {
-            background-color: #ffcccc;
-            cursor: not-allowed;
-        }
-
-        /* Notification Styles */
-        .notification-toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background-color: #002044;
-            color: white;
-            padding: 15px 25px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            min-width: 300px;
-            max-width: 400px;
-            z-index: 9999;
-            animation: slideIn 0.5s ease-out;
-        }
-
-        .notification-toast.hide {
-            animation: slideOut 0.5s ease-out forwards;
-        }
-
-        .notification-close {
-            cursor: pointer;
-            margin-left: 15px;
-            font-size: 20px;
-            opacity: 0.7;
-            transition: opacity 0.2s;
-        }
-
-        .notification-close:hover {
-            opacity: 1;
-        }
-
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-
-        @keyframes slideOut {
-            from {
-                transform: translateX(0);
-                opacity: 1;
-            }
-            to {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-        }
+        .res-table{width:100%;border-collapse:separate;border-spacing:0 8px;}
+        .res-table thead th{padding:0 14px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);}
+        .res-table tbody td{padding:0 14px;height:54px;font-size:13px;vertical-align:middle;background:rgba(255,255,255,0.02);border-top:1px solid transparent;border-bottom:1px solid transparent;}
+        .res-table tbody td:first-child{border-radius:12px 0 0 12px;border-left:1px solid transparent;}
+        .res-table tbody td:last-child{border-radius:0 12px 12px 0;border-right:1px solid transparent;}
+        .res-table tbody tr:hover td{background:rgba(139,63,217,0.05);border-color:rgba(139,63,217,0.2);}
+        .res-table tbody tr:hover td:first-child{border-left:1px solid rgba(139,63,217,0.2);}
+        .res-table tbody tr:hover td:last-child{border-right:1px solid rgba(139,63,217,0.2);}
+        .badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+        .badge-approved{background:rgba(16,185,129,0.15);color:#10b981;}
+        .badge-pending{background:rgba(234,179,8,0.15);color:#eab308;}
+        .badge-declined{background:rgba(239,68,68,0.15);color:#ef4444;}
+        .badge-completed{background:rgba(59,130,246,0.15);color:#3b82f6;}
+        .badge-sitinned{background:rgba(139,63,217,0.15);color:#C084FC;}
+        .lab-badge{display:inline-flex;align-items:center;background:rgba(139,63,217,0.12);color:var(--purple-light);border:1px solid rgba(139,63,217,0.2);border-radius:8px;padding:3px 10px;font-size:12px;font-weight:700;}
+        .ctrl-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;}
+        .h-search{position:relative;}
+        .h-search input{background:rgba(255,255,255,0.05);border:1px solid var(--border);color:#fff;padding:8px 16px 8px 36px;border-radius:10px;font-size:13px;width:220px;outline:none;transition:all 0.3s;font-family:var(--font-b);}
+        .h-search input:focus{border-color:var(--purple-glow);box-shadow:0 0 12px rgba(139,63,217,0.2);}
+        .h-search input::placeholder{color:var(--text-dim);}
+        .h-search i{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:12px;}
+        .h-select{background:rgba(255,255,255,0.05);border:1px solid var(--border);color:#fff;padding:8px 12px;border-radius:10px;font-size:13px;font-family:var(--font-b);outline:none;cursor:pointer;}
+        .btn-add-res{display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--purple-glow),var(--purple-light));color:#fff;border:none;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:700;font-family:var(--font-b);cursor:pointer;transition:all 0.3s;box-shadow:0 4px 15px rgba(139,63,217,0.3);}
+        .btn-add-res:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(139,63,217,0.5);}
+        .pag-row{display:flex;justify-content:space-between;align-items:center;margin-top:16px;}
+        .pag-info{color:var(--text-dim);font-size:12px;}
+        .pag-btns{display:flex;gap:5px;}
+        .pag-btn{min-width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-family:var(--font-b);transition:all 0.3s;}
+        .pag-btn:hover:not(.active):not(:disabled){border-color:var(--purple-glow);color:#fff;background:var(--purple-hover);}
+        .pag-btn.active{background:var(--purple-glow);color:#fff;border-color:var(--purple-glow);}
+        .pag-btn:disabled{opacity:0.4;cursor:not-allowed;}
+        /* Modal */
+        .res-modal{position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;z-index:2000;overflow-y:auto;padding:20px;}
+        .res-modal.show{display:flex;}
+        .res-box{background:#0f0d1f;border:1px solid rgba(139,63,217,0.35);border-radius:22px;padding:30px;width:100%;max-width:520px;box-shadow:0 30px 60px rgba(0,0,0,0.7);position:relative;}
+        .res-box h2{font-family:var(--font-h);font-size:16px;color:#fff;margin:0 0 22px;letter-spacing:1px;}
+        .field-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);margin-bottom:6px;display:block;}
+        .d-input{width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;font-family:var(--font-b);outline:none;transition:all 0.3s;}
+        .d-input:focus{border-color:var(--purple-glow);box-shadow:0 0 12px rgba(139,63,217,0.2);}
+        .d-input[readonly]{opacity:0.5;cursor:not-allowed;}
+        .d-select{width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;font-family:var(--font-b);outline:none;cursor:pointer;-webkit-appearance:none;}
+        .d-select:focus{border-color:var(--purple-glow);}
+        .d-select option{background:#1A1530;}
+        .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+        .pc-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px;}
+        .pc-item{padding:8px 4px;text-align:center;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);color:var(--text-dim);background:rgba(255,255,255,0.03);transition:all 0.2s;}
+        .pc-item:hover{border-color:var(--purple-glow);color:#fff;}
+        .pc-item.selected{background:var(--purple-glow);color:#fff;border-color:var(--purple-glow);box-shadow:0 0 10px rgba(139,63,217,0.4);}
+        .pc-item.unavailable{background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.2);cursor:not-allowed;}
+        .modal-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:22px;}
+        .btn-modal-cancel{background:rgba(255,255,255,0.05);color:var(--text-dim);border:1px solid var(--border);padding:10px 20px;border-radius:10px;font-size:13px;font-family:var(--font-b);cursor:pointer;transition:all 0.3s;}
+        .btn-modal-cancel:hover{border-color:#ef4444;color:#ef4444;}
+        .btn-modal-submit{background:linear-gradient(135deg,var(--purple-glow),var(--purple-light));color:#fff;border:none;padding:10px 24px;border-radius:10px;font-size:13px;font-weight:700;font-family:var(--font-b);cursor:pointer;transition:all 0.3s;}
+        .btn-modal-submit:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(139,63,217,0.4);}
+        /* flatpickr dark override */
+        .flatpickr-calendar{background:#161326!important;border:1px solid rgba(139,63,217,0.3)!important;border-radius:14px!important;box-shadow:0 20px 40px rgba(0,0,0,0.5)!important;}
+        .flatpickr-day{color:#D1C7E0!important;}
+        .flatpickr-day.selected{background:var(--purple-glow)!important;border-color:var(--purple-glow)!important;}
+        .flatpickr-day:hover{background:rgba(139,63,217,0.2)!important;}
+        .flatpickr-months .flatpickr-month,.flatpickr-weekdays,.flatpickr-weekday{background:#0f0d1f!important;color:#9A8FB0!important;}
+        .flatpickr-current-month{color:#fff!important;}
+        /* toast */
+        .res-toast{position:fixed;bottom:28px;right:28px;z-index:9999;background:#161326;border:1px solid rgba(139,63,217,0.3);border-radius:14px;padding:14px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 20px 40px rgba(0,0,0,0.5);transform:translateY(120%);opacity:0;transition:all 0.4s cubic-bezier(0.175,0.885,0.32,1.275);min-width:260px;}
+        .res-toast.show{transform:translateY(0);opacity:1;}
     </style>
 </head>
-<body class="bg-gray-100 font-sans antialiased">
-    <div class="flex h-screen">
-        <?php include 'sidebar.php'; ?>
-
-        <div class="main-content flex-1 flex flex-col">
-            <?php include 'header.php'; ?>
-            
-            <div class="flex-1 p-6">
-                <div class="max-w-6xl mx-auto">
-                    <!-- Controls (Entries, Search, Filter) -->
-                    <div class="flex justify-between items-center mb-4">
-                        <div class="flex items-center space-x-2">
-                            <label class="text-gray-600" for="entries">
-                                Entries per page
-                            </label>
-                            <select class="border border-gray-300 rounded-md p-2" id="entries">
-                                <option value="all" selected>All</option>
-                                <option value="5">5</option>
-                                <option value="10">10</option>
-                                <option value="25">25</option>
-                                <option value="50">50</option>
-                            </select>
+<body>
+    <canvas id="star-canvas"></canvas>
+    <?php include 'sidebar.php'; ?>
+    <div class="main-wrapper">
+        <?php include 'header.php'; ?>
+        <div class="student-content">
+            <div class="content-card">
+                <!-- Controls -->
+                <div class="ctrl-row">
+                    <!-- Hidden entries select to keep pagination logic working if needed, defaulting to all -->
+                    <select id="entriesSelect" style="display:none;"><option value="all" selected>all</option></select>
+                    
+                    <div style="display:flex;align-items:center;gap:12px;margin-left:auto;">
+                        <div class="h-search">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="resSearch" placeholder="Search…">
                         </div>
-
-                        <div class="flex items-center space-x-4">
-                            <div class="relative">
-                                <input id="searchInput" class="w-full py-2 pl-10 pr-4 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500" placeholder="Search" type="text"/>
-                                <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                            </div>
-                            
-                            <button onclick="openModal()" class="bg-[#002044] text-white px-4 py-2 rounded-md flex items-center space-x-2">
-                                <i class="fas fa-plus"></i>
-                                <span>Add Reservation</span>
-                            </button>
-                        </div>
+                        <button class="btn-add-res" onclick="openModal()">
+                            <i class="fas fa-plus"></i> New Reservation
+                        </button>
                     </div>
+                </div>
 
-                    <div class="overflow-x-auto">
-                        <table id="sitinTable" class="min-w-full bg-white shadow-md rounded-lg">
-                            <thead>
-                                <tr class="bg-[#002044] text-white">
-                                    <th class="py-4 px-4 text-center">Lab Number</th>
-                                    <th class="py-4 px-4 text-center">PC Number</th>
-                                    <th class="py-4 px-4 text-center">Date</th>
-                                    <th class="py-4 px-4 text-center">Time</th>
-                                    <th class="py-4 px-4 text-center">Purpose</th>
-                                    <th class="py-4 px-4 text-center">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($reservations)): ?>
-                                    <tr>
-                                        <td colspan="6" class="py-4 px-4 text-center">No reservations found</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($reservations as $index => $reservation): ?>
-                                        <tr class="<?php echo ($index % 2 === 0) ? 'bg-gray-100' : 'bg-gray-200'; ?>">
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['lab_number']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['pc_number']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('F j, Y', strtotime($reservation['reservation_date']))); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars(date('g:i A', strtotime($reservation['time_in']))); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($reservation['purpose']); ?></td>
-                                            <td class="py-4 px-4 text-center">
-                                                <?php if ($reservation['time_in_status'] == 'completed'): ?>
-                                                    <span class="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                                        Completed
-                                                    </span>
-                                                <?php elseif ($reservation['time_in_status'] == 'sit-inned'): ?>
-                                                    <span class="px-2 py-1 rounded-full text-xs bg-violet-100 text-violet-800">
-                                                        Sit-inned
-                                                    </span>
-                                                <?php else: ?>
-                                                    <span class="px-2 py-1 rounded-full text-xs 
-                                                        <?php 
-                                                            if ($reservation['status'] == 'approved') echo 'bg-green-100 text-green-800';
-                                                            elseif ($reservation['status'] == 'declined') echo 'bg-red-100 text-red-800';
-                                                            else echo 'bg-yellow-100 text-yellow-800';
-                                                        ?>">
-                                                        <?php echo htmlspecialchars(ucfirst($reservation['status'])); ?>
-                                                    </span>
-                                                <?php endif; ?>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
+                <!-- Table -->
+                <div style="flex:1;overflow-x:auto;">
+                    <table class="res-table" id="resTable">
+                        <thead>
+                            <tr>
+                                <th>Lab</th>
+                                <th>PC</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Purpose</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($reservations)): ?>
+                            <tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:50px 0;">
+                                <i class="fas fa-calendar-times" style="font-size:32px;opacity:0.3;display:block;margin-bottom:10px;"></i>No reservations yet.
+                            </td></tr>
+                            <?php else: ?>
+                            <?php foreach ($reservations as $r): ?>
+                            <tr>
+                                <td><span class="lab-badge">Lab <?php echo htmlspecialchars($r['lab_number']); ?></span></td>
+                                <td style="color:#D1C7E0;font-weight:600;">PC <?php echo htmlspecialchars($r['pc_number']); ?></td>
+                                <td style="color:#fff;font-weight:500;"><?php echo date('M d, Y', strtotime($r['reservation_date'])); ?></td>
+                                <td style="color:var(--text-dim);font-size:12px;"><?php echo date('g:i A', strtotime($r['time_in'])); ?></td>
+                                <td style="color:var(--text-dim);font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?php echo htmlspecialchars($r['purpose']); ?></td>
+                                <td>
+                                    <?php
+                                    if ($r['time_in_status'] === 'completed') echo '<span class="badge badge-completed">Completed</span>';
+                                    elseif ($r['time_in_status'] === 'sit-inned') echo '<span class="badge badge-sitinned">Sit-inned</span>';
+                                    elseif ($r['status'] === 'approved') echo '<span class="badge badge-approved">Approved</span>';
+                                    elseif ($r['status'] === 'declined') echo '<span class="badge badge-declined">Declined</span>';
+                                    else echo '<span class="badge badge-pending">Pending</span>';
+                                    ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
 
-                    <!-- Pagination -->
-                    <div class="flex justify-between items-center mt-4">
-                        <div class="text-gray-600" id="paginationInfo"></div>
-                        <div class="flex space-x-2" id="paginationControls"></div>
-                    </div>
+                <!-- Pagination -->
+                <div class="pagination-row">
+                    <div class="pagination-info" id="pagInfo"></div>
+                    <div class="pagination-controls" id="pagBtns"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="reservationModal" class="overlay hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-        <div class="modal bg-white p-6 rounded-lg w-full max-w-md max-h-[700px] overflow-hidden md:overflow-auto overflow-hidden md:overflow-y-auto [&::-webkit-scrollbar]:hidden">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold">New Reservation</h2>
-                <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
-            </div>
-            
-            <form id="reservationForm" class="space-y-4">
-                <div class="flex flex-col space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="flex flex-col text-left">
-                            <label class="font-semibold">ID Number:</label>
-                            <input type="text" value="<?php echo htmlspecialchars($user['idno']); ?>" class="w-full border px-3 py-2 rounded bg-gray-200" readonly>
-                        </div>
-                        
-                        <div class="flex flex-col text-left">
-                            <label class="font-semibold">Student Name:</label>
-                            <input type="text" value="<?php echo htmlspecialchars($user['firstname'] . ' ' . $user['lastname']); ?>" class="w-full border px-3 py-2 rounded bg-gray-200" readonly>
-                        </div>
+    <!-- New Reservation Modal -->
+    <div id="reservationModal" class="res-modal">
+        <div class="res-box">
+            <button onclick="closeModal()" style="position:absolute;top:18px;right:18px;background:none;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;"><i class="fas fa-times"></i></button>
+            <h2><i class="fas fa-calendar-plus" style="color:var(--purple-glow);margin-right:10px;"></i>NEW RESERVATION</h2>
+            <form id="reservationForm">
+                <div class="form-grid" style="margin-bottom:14px;">
+                    <div>
+                        <label class="field-lbl">ID Number</label>
+                        <input class="d-input" type="text" value="<?php echo htmlspecialchars($user['idno']); ?>" readonly>
                     </div>
-                    
-                    <div class="flex flex-col text-left">
-                        <label class="font-semibold">Remaining Sessions:</label>
-                        <input type="text" value="<?php echo htmlspecialchars($user['session']); ?>" class="w-full border px-3 py-2 rounded bg-gray-200" readonly>
+                    <div>
+                        <label class="field-lbl">Student Name</label>
+                        <input class="d-input" type="text" value="<?php echo htmlspecialchars($user['firstname'].' '.$user['lastname']); ?>" readonly>
                     </div>
-                    <div class="flex flex-col text-left">
-                        <label class="font-semibold">Purpose:</label>
-                        <select name="purpose" class="w-full border px-3 py-2 rounded bg-white [&::-webkit-scrollbar]:hidden" onchange="toggleOtherReason()" required>
-                            <option value="">Select Purpose</option>
-                            <option value="C Programming">C Programming</option>
-                            <option value="C# Programming">C# Programming</option>
-                            <option value="Java Programming">Java Programming</option>
-                            <option value="PHP Programming">PHP Programming</option>
-                            <option value="ASP Net">ASP Net</option>
-                            <option value="Web Development">Web Development</option>
-                            <option value="Systems Integration & Architecture">Systems Integration & Architecture</option>
-                            <option value="Embedded Systems & IoT">Embedded Systems & IoT</option>
-                            <option value="Digital Logic & Design">Digital Logic & Design</option>
-                            <option value="Computer Application">Computer Application</option>
-                            <option value="Database">Database</option>
-                            <option value="Project Management">Project Management</option>
-                            <option value="Mobile Application">Mobile Application</option>
-                            <option value="Others">Others</option>
-                        </select>
-                    </div>
-                    
-                    <div id="otherReasonDiv" class="hidden flex flex-col text-left">
-                        <label class="font-semibold">Specify Purpose:</label>
-                        <input type="text" name="other_reason" class="w-full border px-3 py-2 rounded bg-white">
-                    </div>
-
-                    <div class="flex flex-col text-left">
-                        <label class="font-semibold">Lab Number:</label>
-                        <select name="lab_number" id="labSelect" class="w-full border px-3 py-2 rounded bg-white" required onchange="loadAvailablePCs()">
-                            <option value="">Select Lab</option>
-                            <option value="524">524</option>
-                            <option value="526">526</option>
-                            <option value="528">528</option>
-                            <option value="530">530</option>
-                            <option value="542">542</option>
-                            <option value="544">544</option>
-                        </select>
-                    </div>
-                    
-                    <div class="flex flex-col text-left" id="pcSelectionContainer" style="display: none;">
-                        <label class="font-semibold">Available PCs:</label>
-                        <div id="pcContainer" class="pc-grid">
-                            <p class="text-gray-500">Please select a lab first</p>
-                        </div>
-                        <input type="hidden" name="pc_number" id="selectedPC" required>
-                    </div>
-                    
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="flex flex-col text-left">
-                            <label class="font-semibold">Date:</label>
-                            <input type="text" id="reservation_date" name="reservation_date" class="w-full border px-3 py-2 rounded bg-white" placeholder="Select date" required>
-                        </div>
-                        
-                        <div class="flex flex-col text-left">
-                            <label class="font-semibold">Time In:</label>
-                            <input type="time" name="time_in" class="w-full border px-3 py-2 rounded bg-white" required>
-                        </div>
-                    </div>
-                    
-
                 </div>
-
-                <div class="flex justify-center gap-6 pt-4">
-                    <button type="button" onclick="closeModal()" class="w-40 h-12 border border-red-700 text-red-700 font-semibold rounded-lg hover:bg-red-700 hover:text-white transition duration-300">
-                        Cancel
-                    </button>
-                    <button type="submit" class="w-40 h-12 bg-purple-700 text-white font-semibold rounded-lg hover:bg-purple-800 transition duration-300">
-                        Reserve
-                    </button>
+                <div style="margin-bottom:14px;">
+                    <label class="field-lbl">Sessions Remaining</label>
+                    <input class="d-input" type="text" value="<?php echo htmlspecialchars($user['session']); ?>" readonly>
+                </div>
+                <div style="margin-bottom:14px;">
+                    <label class="field-lbl">Purpose</label>
+                    <select class="d-select" name="purpose" onchange="toggleOtherReason()" required>
+                        <option value="">Select Purpose</option>
+                        <?php foreach(['C Programming','C# Programming','Java Programming','PHP Programming','ASP Net','Web Development','Systems Integration & Architecture','Embedded Systems & IoT','Digital Logic & Design','Computer Application','Database','Project Management','Mobile Application','Others'] as $p): ?>
+                        <option value="<?php echo $p; ?>"><?php echo $p; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div id="otherReasonDiv" style="display:none;margin-bottom:14px;">
+                    <label class="field-lbl">Specify Purpose</label>
+                    <input class="d-input" type="text" name="other_reason" placeholder="Describe your purpose…">
+                </div>
+                <div style="margin-bottom:14px;">
+                    <label class="field-lbl">Laboratory</label>
+                    <select class="d-select" name="lab_number" id="labSelect" required onchange="loadAvailablePCs()">
+                        <option value="">Select Lab</option>
+                        <?php foreach([524,526,528,530,542,544] as $lab): ?>
+                        <option value="<?php echo $lab; ?>">Lab <?php echo $lab; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div id="pcSelectionContainer" style="display:none;margin-bottom:14px;">
+                    <label class="field-lbl">Select a PC</label>
+                    <div id="pcContainer" class="pc-grid"></div>
+                    <input type="hidden" name="pc_number" id="selectedPC" required>
+                </div>
+                <div class="form-grid" style="margin-bottom:6px;">
+                    <div>
+                        <label class="field-lbl">Date</label>
+                        <input class="d-input" type="text" id="reservation_date" name="reservation_date" placeholder="Select date" required>
+                    </div>
+                    <div>
+                        <label class="field-lbl">Time In</label>
+                        <input class="d-input" type="time" name="time_in" required>
+                    </div>
+                </div>
+                <div class="modal-btns">
+                    <button type="button" class="btn-modal-cancel" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-modal-submit"><i class="fas fa-check" style="margin-right:6px;"></i>Reserve</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <script>
-        const datePicker = flatpickr("#reservation_date", {
-            minDate: "today",
-            maxDate: new Date().fp_incr(14),
-            disable: [
-                function(date) {
-                    return (date.getDay() === 0);
-                }
-            ],
-            dateFormat: "Y-m-d"
-        });
-        
-        function openModal() {
-            document.getElementById('reservationModal').classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeModal() {
-            document.getElementById('reservationModal').classList.add('hidden');
-            document.body.style.overflow = 'auto';
-            document.getElementById('selectedPC').value = '';
-            document.getElementById('pcSelectionContainer').style.display = 'none';
-        }
-        
-        function toggleOtherReason() {
-            const purposeSelect = document.querySelector('select[name="purpose"]');
-            const otherReasonDiv = document.getElementById('otherReasonDiv');
-            
-            if (purposeSelect.value === 'Others') {
-                otherReasonDiv.classList.remove('hidden');
-                document.querySelector('input[name="other_reason"]').required = true;
-            } else {
-                otherReasonDiv.classList.add('hidden');
-                document.querySelector('input[name="other_reason"]').required = false;
-            }
-        }
-        
-        async function loadAvailablePCs() {
-            const labNumber = document.getElementById('labSelect').value;
-            const pcContainer = document.getElementById('pcContainer');
-            const pcSelectionContainer = document.getElementById('pcSelectionContainer');
-            const selectedPC = document.getElementById('selectedPC');
-            
-            // Hide the container if no lab is selected
-            if (!labNumber) {
-                pcSelectionContainer.style.display = 'none';
-                pcContainer.innerHTML = '<p class="text-gray-500">Please select a lab first</p>';
-                selectedPC.value = '';
-                return;
-            }
-            
-            // Show the container when lab is selected
-            pcSelectionContainer.style.display = 'flex';
-            pcContainer.innerHTML = '<p class="text-gray-500">Loading available PCs...</p>';
-            
-            try {
-                const response = await fetch('get_available_pcs.php?lab=' + labNumber);
-                const data = await response.json();
-                
-                if (data.success) {
-                    let html = '';
-                    const availablePCs = data.pcs.filter(pc => pc.status === 'available');
-                    
-                    if (availablePCs.length > 0) {
-                        availablePCs.forEach(pc => {
-                            html += `
-                                <div class="pc-item" 
-                                    data-pc="${pc.pc_number}" 
-                                    onclick="selectPC(this)"
-                                    title="Available">
-                                    PC ${pc.pc_number}
-                                </div>
-                            `;
-                        });
-                    } else {
-                        html = '<p class="text-gray-500">No available PCs in this lab</p>';
-                    }
-                    
-                    pcContainer.innerHTML = html;
-                } else {
-                    pcContainer.innerHTML = '<p class="text-red-500">Error loading PCs: ' + data.message + '</p>';
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                pcContainer.innerHTML = '<p class="text-red-500">Error loading PCs</p>';
-            }
-        }
-        
-        function selectPC(element) {
-            const pcNumber = element.getAttribute('data-pc');
-            const pcItems = document.querySelectorAll('.pc-item');
-            
-            pcItems.forEach(item => {
-                item.classList.remove('selected');
-            });
-            
-            element.classList.add('selected');
-            document.getElementById('selectedPC').value = pcNumber;
-        }
-
-        document.getElementById('reservationForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            try {
-                const form = e.target;
-                const formData = new FormData(form);
-                
-                formData.append('reserve', '1');
-                
-                const selectedDate = datePicker.selectedDates[0];
-                if (selectedDate) {
-                    const formattedDate = datePicker.formatDate(selectedDate, 'Y-m-d');
-                    formData.set('reservation_date', formattedDate);
-                }
-                
-                const response = await fetch('reservation.php', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert(data.message);
-                    closeModal();
-                    window.location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('An error occurred. Please try again.');
-            }
-        });
-
-        // Global variables for pagination
-        let currentPage = 1;
-        let totalPages = 1;
-        let currentSort = 'newest'; // Default sort
-
-        // Main filter function with pagination
-        function filterTable() {
-            const searchValue = document.getElementById('searchInput').value.toLowerCase();
-            const entriesPerPage = document.getElementById('entries').value;
-            
-            const rows = document.querySelectorAll('#sitinTable tbody tr');
-            let visibleRows = [];
-            let totalVisible = 0;
-
-            // First pass: filter rows by search and count visible rows
-            rows.forEach((row) => {
-                const cells = row.querySelectorAll('td');
-                let match = searchValue === '';
-                
-                if (searchValue !== '') {
-                    cells.forEach(cell => {
-                        if (cell.textContent.toLowerCase().includes(searchValue)) {
-                            match = true;
-                        }
-                    });
-                }
-
-                if (match) {
-                    visibleRows.push(row);
-                    totalVisible++;
-                }
-            });
-
-            // Sort the visible rows
-            sortVisibleRows(visibleRows);
-
-            // Show all rows if "All" is selected
-            if (entriesPerPage === "all") {
-                rows.forEach(row => row.style.display = 'none');
-                visibleRows.forEach(row => row.style.display = '');
-                updatePaginationControls(totalVisible, true);
-                return;
-            }
-
-            // Calculate total pages for paginated results
-            const entriesNum = parseInt(entriesPerPage);
-            totalPages = Math.ceil(totalVisible / entriesNum);
-            if (currentPage > totalPages && totalPages > 0) {
-                currentPage = totalPages;
-            } else if (totalPages === 0) {
-                currentPage = 1;
-            }
-
-            // Second pass: show/hide rows based on pagination
-            const startIndex = (currentPage - 1) * entriesNum;
-            const endIndex = startIndex + entriesNum;
-
-            rows.forEach(row => row.style.display = 'none');
-            visibleRows.slice(startIndex, endIndex).forEach(row => row.style.display = '');
-
-            // Update pagination controls
-            updatePaginationControls(totalVisible, false);
-        }
-
-        // Sort visible rows based on current sort type
-        function sortVisibleRows(rows) {
-            rows.sort((a, b) => {
-                const aDate = a.querySelector('td:nth-child(3)').textContent;
-                const bDate = b.querySelector('td:nth-child(3)').textContent;
-
-                switch (currentSort) {
-                    case 'newest':
-                        return new Date(bDate) - new Date(aDate);
-                    case 'oldest':
-                        return new Date(aDate) - new Date(bDate);
-                    default:
-                        return 0;
-                }
-            });
-        }
-
-        // Update pagination controls
-        function updatePaginationControls(totalVisible, showAll) {
-            const entriesPerPage = document.getElementById('entries').value;
-            const paginationInfo = document.getElementById('paginationInfo');
-            const paginationControls = document.getElementById('paginationControls');
-            
-            if (entriesPerPage === "all" || showAll) {
-                paginationInfo.textContent = `Showing all ${totalVisible} entries`;
-                paginationControls.innerHTML = '';
-                return;
-            }
-            
-            const entriesNum = parseInt(entriesPerPage);
-            const startEntry = totalVisible === 0 ? 0 : (currentPage - 1) * entriesNum + 1;
-            const endEntry = Math.min(currentPage * entriesNum, totalVisible);
-            
-            paginationInfo.textContent = `Showing ${startEntry} to ${endEntry} of ${totalVisible} entries`;
-            paginationControls.innerHTML = '';
-            
-            // Previous button
-            const prevButton = document.createElement('button');
-            prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
-            prevButton.className = `px-3 py-1 rounded-md border ${currentPage === 1 ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
-            prevButton.disabled = currentPage === 1;
-            prevButton.addEventListener('click', () => {
-                if (currentPage > 1) {
-                    currentPage--;
-                    filterTable();
-                }
-            });
-            paginationControls.appendChild(prevButton);
-            
-            // Page numbers
-            const maxVisiblePages = 5;
-            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-            
-            if (endPage - startPage + 1 < maxVisiblePages) {
-                startPage = Math.max(1, endPage - maxVisiblePages + 1);
-            }
-            
-            if (startPage > 1) {
-                const firstPageButton = document.createElement('button');
-                firstPageButton.textContent = '1';
-                firstPageButton.className = 'px-3 py-1 rounded-md border bg-white text-[#002044] hover:bg-gray-100';
-                firstPageButton.addEventListener('click', () => {
-                    currentPage = 1;
-                    filterTable();
-                });
-                paginationControls.appendChild(firstPageButton);
-                
-                if (startPage > 2) {
-                    const ellipsis = document.createElement('span');
-                    ellipsis.textContent = '...';
-                    ellipsis.className = 'px-2 py-1';
-                    paginationControls.appendChild(ellipsis);
-                }
-            }
-            
-            for (let i = startPage; i <= endPage; i++) {
-                const pageButton = document.createElement('button');
-                pageButton.textContent = i;
-                pageButton.className = `px-3 py-1 rounded-md border ${i === currentPage ? 'bg-[#002044] text-white' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
-                pageButton.addEventListener('click', () => {
-                    currentPage = i;
-                    filterTable();
-                });
-                paginationControls.appendChild(pageButton);
-            }
-            
-            if (endPage < totalPages) {
-                if (endPage < totalPages - 1) {
-                    const ellipsis = document.createElement('span');
-                    ellipsis.textContent = '...';
-                    ellipsis.className = 'px-2 py-1';
-                    paginationControls.appendChild(ellipsis);
-                }
-                
-                const lastPageButton = document.createElement('button');
-                lastPageButton.textContent = totalPages;
-                lastPageButton.className = 'px-3 py-1 rounded-md border bg-white text-[#002044] hover:bg-gray-100';
-                lastPageButton.addEventListener('click', () => {
-                    currentPage = totalPages;
-                    filterTable();
-                });
-                paginationControls.appendChild(lastPageButton);
-            }
-            
-            // Next button
-            const nextButton = document.createElement('button');
-            nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
-            nextButton.className = `px-3 py-1 rounded-md border ${currentPage === totalPages ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white text-[#002044] hover:bg-gray-100'}`;
-            nextButton.disabled = currentPage === totalPages;
-            nextButton.addEventListener('click', () => {
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    filterTable();
-                }
-            });
-            paginationControls.appendChild(nextButton);
-        }
-
-        // Entries per page functionality
-        document.getElementById('entries').addEventListener('change', function() {
-            currentPage = 1;
-            filterTable();
-        });
-
-        // Initialize table on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            filterTable();
-        });
-
-        // Enhanced notification system
-// Enhanced notification system
-function showNotification(message, duration = 10000) {
-    // Remove any existing notifications
-    const existingNotifications = document.querySelectorAll('.notification-toast');
-    existingNotifications.forEach(notification => notification.remove());
-
-    // Create toast notification
-    const toast = document.createElement('div');
-    toast.className = 'notification-toast';
-    toast.innerHTML = `
-        <div class="flex items-center">
-            <i class="fas fa-bell mr-3"></i>
-            <span>${message}</span>
+    <!-- Toast -->
+    <div id="resToast" class="res-toast">
+        <i id="resToastIcon" class="fas fa-check-circle" style="font-size:20px;color:#10b981;"></i>
+        <div>
+            <div id="resToastTitle" style="font-family:var(--font-h);font-size:11px;font-weight:700;color:#fff;letter-spacing:0.5px;margin-bottom:2px;">SUCCESS</div>
+            <div id="resToastMsg" style="font-size:13px;color:var(--text-dim);"></div>
         </div>
-        <span class="notification-close">&times;</span>
-    `;
-    
-    document.body.appendChild(toast);
-    
-    // Close button functionality
-    const closeBtn = toast.querySelector('.notification-close');
-    closeBtn.addEventListener('click', () => {
-        toast.classList.add('hide');
-        setTimeout(() => toast.remove(), 500);
+    </div>
+
+    <script>
+    // Star canvas
+    (function(){const c=document.getElementById('star-canvas'),ctx=c.getContext('2d');let W,H,st=[];function r(){W=c.width=window.innerWidth;H=c.height=window.innerHeight;}window.addEventListener('resize',r);r();for(let i=0;i<120;i++)st.push({x:Math.random()*9999,y:Math.random()*9999,r:Math.random()*1.2+0.3,a:Math.random(),da:(Math.random()*0.003+0.001)*(Math.random()<.5?1:-1)});function d(){ctx.clearRect(0,0,W,H);st.forEach(s=>{s.a+=s.da;if(s.a<=0||s.a>=1)s.da*=-1;ctx.beginPath();ctx.arc(s.x%W,s.y%H,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(200,180,255,${s.a.toFixed(2)})`;ctx.fill();});requestAnimationFrame(d);}d();})();
+
+    // Flatpickr
+    const datePicker = flatpickr("#reservation_date", {
+        minDate:"today", maxDate:new Date().fp_incr(14),
+        disable:[function(date){return date.getDay()===0;}],
+        dateFormat:"Y-m-d"
     });
-    
-    // Auto-close after duration
-    setTimeout(() => {
-        toast.classList.add('hide');
-        setTimeout(() => toast.remove(), 500);
-    }, duration);
 
-    // Play notification sound if available
-    try {
-        const audio = new Audio('notification-sound.mp3');
-        audio.play().catch(e => console.log('Audio play failed:', e));
-    } catch (e) {
-        console.log('Audio not available:', e);
+    const hasActiveSitin = <?php echo $hasActiveSitin ? 'true' : 'false'; ?>;
+    function openModal(){
+        if (hasActiveSitin) {
+            showToast(false, "You cannot make a reservation while you are currently in an active sit-in session.");
+            return;
+        }
+        document.getElementById('reservationModal').classList.add('show');
     }
-}
+    function closeModal(){
+        document.getElementById('reservationModal').classList.remove('show');
+        document.getElementById('selectedPC').value='';
+        document.getElementById('pcSelectionContainer').style.display='none';
+        document.getElementById('reservationForm').reset();
+    }
+    function toggleOtherReason(){
+        const v=document.querySelector('select[name="purpose"]').value;
+        document.getElementById('otherReasonDiv').style.display=v==='Others'?'block':'none';
+    }
 
-// Improved check for upcoming reservations
-function checkForUpcomingReservations() {
-    fetch('reservation.php?check_upcoming=1')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.has_upcoming) {
-                data.notifications.forEach(notification => {
-                    // Show toast notification
-                    showNotification(notification.message, 1000);
-                    
-                    // Also show browser notification if available
-                    if ('Notification' in window && Notification.permission === 'granted') {
-                        new Notification('Reservation Reminder', {
-                            body: notification.message,
-                            icon: 'notification-icon.png'
-                        });
-                    }
-                });
+    async function loadAvailablePCs(){
+        const lab=document.getElementById('labSelect').value;
+        const cont=document.getElementById('pcContainer');
+        const wrap=document.getElementById('pcSelectionContainer');
+        if(!lab){wrap.style.display='none';return;}
+        wrap.style.display='block';
+        cont.innerHTML='<p style="color:var(--text-dim);font-size:13px;">Loading…</p>';
+        try{
+            const res=await fetch('get_available_pcs.php?lab='+lab);
+            const data=await res.json();
+            if(data.success){
+                const avail=data.pcs.filter(p=>p.status==='available');
+                if(avail.length){
+                    cont.innerHTML=avail.map(p=>`<div class="pc-item" data-pc="${p.pc_number}" onclick="selectPC(this)">PC ${p.pc_number}</div>`).join('');
+                } else {
+                    cont.innerHTML='<p style="color:#ef4444;font-size:13px;">No available PCs.</p>';
+                }
             }
-        })
-        .catch(error => {
-            console.error('Error checking reservations:', error);
-            showNotification("Error checking reservations. Please refresh the page.", 1000);
-        });
-}
+        }catch(e){cont.innerHTML='<p style="color:#ef4444;font-size:13px;">Error loading PCs.</p>';}
+    }
+    function selectPC(el){
+        document.querySelectorAll('.pc-item').forEach(i=>i.classList.remove('selected'));
+        el.classList.add('selected');
+        document.getElementById('selectedPC').value=el.dataset.pc;
+    }
 
-// Request notification permission and set up checks
-document.addEventListener('DOMContentLoaded', function() {
-    // Request notification permission
-    if ('Notification' in window) {
-        Notification.requestPermission().then(permission => {
-            console.log('Notification permission:', permission);
+    document.getElementById('reservationForm').addEventListener('submit',async function(e){
+        e.preventDefault();
+        const fd=new FormData(this);
+        fd.append('reserve','1');
+        const sel=datePicker.selectedDates[0];
+        if(sel)fd.set('reservation_date',datePicker.formatDate(sel,'Y-m-d'));
+        try{
+            const res=await fetch('reservation.php',{method:'POST',body:fd});
+            const data=await res.json();
+            showToast(data.success,data.message);
+            if(data.success){closeModal();setTimeout(()=>location.reload(),1500);}
+        }catch(err){showToast(false,'An error occurred.');}
+    });
+
+    function showToast(ok,msg){
+        const t=document.getElementById('resToast');
+        document.getElementById('resToastMsg').textContent=msg;
+        document.getElementById('resToastTitle').textContent=ok?'SUCCESS':'ERROR';
+        document.getElementById('resToastIcon').className='fas '+(ok?'fa-check-circle':'fa-exclamation-circle');
+        document.getElementById('resToastIcon').style.color=ok?'#10b981':'#ef4444';
+        t.classList.add('show');
+        setTimeout(()=>t.classList.remove('show'),3500);
+    }
+
+    // Pagination
+    let curPage = 1, totalPages = 1;
+    const allRows = () => [...document.querySelectorAll('#resTable tbody tr:not(.empty-row)')];
+    
+    function getVis() {
+        const q = document.getElementById('resSearch').value.toLowerCase();
+        return allRows().filter(r => {
+            if (!q) return true;
+            return [...r.querySelectorAll('td')].map(c => c.textContent.toLowerCase()).join(' ').includes(q);
         });
     }
-    
-    // First check right away
-    checkForUpcomingReservations();
-    
-    // Then check every 30 seconds for more timely notifications
-    setInterval(checkForUpcomingReservations, 30 * 1000);
-});
+
+    function render() {
+        const vis = getVis();
+        const ep = document.getElementById('entriesSelect').value;
+        allRows().forEach(r => r.style.display = 'none');
+
+        if (ep === 'all') {
+            vis.forEach(r => r.style.display = '');
+            const info = document.getElementById('pagInfo');
+            const controls = document.getElementById('pagBtns');
+            info.textContent = `Showing ${vis.length} entries`;
+            controls.innerHTML = '';
+            return;
+        }
+
+        const num = parseInt(ep);
+        totalPages = Math.ceil(vis.length / num);
+        if (curPage > totalPages && totalPages > 0) curPage = totalPages;
+        else if (totalPages === 0) curPage = 1;
+
+        const start = (curPage - 1) * num;
+        vis.slice(start, start + num).forEach(r => r.style.display = '');
+        
+        // Update pagination info and buttons
+        const info = document.getElementById('pagInfo');
+        const controls = document.getElementById('pagBtns');
+        
+        const s = vis.length === 0 ? 0 : (curPage - 1) * num + 1;
+        const e = Math.min(curPage * num, vis.length);
+        info.textContent = `Showing ${s} to ${e} of ${vis.length} entries`;
+        controls.innerHTML = '';
+
+        if (totalPages <= 1) return;
+
+        // Prev
+        const prev = document.createElement('button');
+        prev.innerHTML = '<i class="fas fa-chevron-left"></i>';
+        prev.className = 'page-btn'; prev.disabled = curPage === 1;
+        prev.addEventListener('click', () => { if (curPage > 1) { curPage--; render(); } });
+        controls.appendChild(prev);
+
+        // Pages
+        const max = 5;
+        let sp = Math.max(1, curPage - Math.floor(max / 2));
+        let epPages = Math.min(totalPages, sp + max - 1);
+        if (epPages - sp + 1 < max) sp = Math.max(1, epPages - max + 1);
+
+        for (let i = sp; i <= epPages; i++) {
+            const btn = document.createElement('button');
+            btn.textContent = i;
+            btn.className = `page-btn ${i === curPage ? 'active' : ''}`;
+            btn.addEventListener('click', () => { curPage = i; render(); });
+            controls.appendChild(btn);
+        }
+
+        // Next
+        const next = document.createElement('button');
+        next.innerHTML = '<i class="fas fa-chevron-right"></i>';
+        next.className = 'page-btn'; next.disabled = curPage === totalPages;
+        next.addEventListener('click', () => { if (curPage < totalPages) { curPage++; render(); } });
+        controls.appendChild(next);
+    }
+
+    document.getElementById('resSearch').addEventListener('input', () => { curPage = 1; render(); });
+    document.getElementById('entriesSelect').addEventListener('change', () => { curPage = 1; render(); });
+    render();
     </script>
 </body>
 </html>

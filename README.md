@@ -42,7 +42,7 @@ The CCS-SITIN Monitoring System is a web-based application designed for the Coll
 ## Usage
 
 1. Start XAMPP and ensure both Apache and MySQL services are running
-2. Open your browser and navigate to `http://localhost/CCS-SITIN/login.php`
+2. Open your browser and navigate to `http://localhost/TempSysArch/public/login.php`
 3. Log in using the default admin credentials:
    - Username: admin
    - Password: admin

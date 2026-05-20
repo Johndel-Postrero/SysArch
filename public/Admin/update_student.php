@@ -1,4 +1,8 @@
 <?php
+error_reporting(0);
+ini_set('display_errors', 0);
+header('Content-Type: application/json');
+
 require __DIR__ . '/../../config/db.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -42,6 +46,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->close();
         }
+
+        // Step 1.5: Check if the email already exists for another user
+        $checkEmailQuery = "SELECT email FROM users WHERE email = ? AND idno != ?";
+        $stmt = $conn->prepare($checkEmailQuery);
+        $stmt->bind_param("ss", $email, $oldIdNo);
+        $stmt->execute();
+        $stmt->store_result();
+
+        if ($stmt->num_rows > 0) {
+            echo json_encode(['success' => false, 'error' => 'Email already exists.']);
+            $conn->rollback();
+            exit();
+        }
+        $stmt->close();
 
         // Step 2: Fetch the existing profile picture and password from the database
         $fetchUserDataQuery = "SELECT profile_picture, password FROM users WHERE idno = ?";

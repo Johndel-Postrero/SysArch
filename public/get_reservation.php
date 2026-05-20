@@ -17,7 +17,7 @@ if (!$reservationId) {
 
 // Fetch user's details
 $username = $_SESSION['login_user'];
-$userQuery = $conn->prepare("SELECT idno FROM users WHERE username = ?");
+$userQuery = $conn->prepare("SELECT idno FROM users WHERE idno = ?");
 $userQuery->bind_param("s", $username);
 $userQuery->execute();
 $userResult = $userQuery->get_result();

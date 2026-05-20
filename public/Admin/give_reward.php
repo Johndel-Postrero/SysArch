@@ -43,10 +43,25 @@ try {
     $user_id = $user['user_id'];
     $userQuery->close();
 
-    // 1. Insert reward record
-    $stmt = $conn->prepare("INSERT INTO rewards (idno, lastname, firstname, sitin_id, rewarded_by) VALUES (?, ?, ?, ?, ?)");
-    $stmt->bind_param("issii", $idno, $lastname, $firstname, $sitin_id, $_SESSION['user_id']);
+    // Get sit-in session duration to calculate total hours used
+    // Use ABS() to handle sessions that cross midnight (TIME column wraps around)
+    $sitinQuery = $conn->prepare("SELECT ABS(TIMESTAMPDIFF(MINUTE, time_in, time_out)) as duration_mins FROM sitin WHERE sitin_id = ?");
+    $sitinQuery->bind_param("i", $sitin_id);
+    $sitinQuery->execute();
+    $sitinResult = $sitinQuery->get_result();
+    $sitinRow = $sitinResult->fetch_assoc();
+    $duration_mins = $sitinRow ? max(0, (int)$sitinRow['duration_mins']) : 0;
+    $sitinQuery->close();
+
+    $hours_used = round($duration_mins / 60.0, 2);
+    $task_completed = isset($_POST['task_completed']) ? (int)$_POST['task_completed'] : 0;
+    $leaderboard_score = round((1.0 * 0.60) + ($task_completed * 0.20) + ($hours_used * 0.20), 2);
+
+    // 1. Insert reward record with task and hours details
+    $stmt = $conn->prepare("INSERT INTO rewards (idno, lastname, firstname, sitin_id, rewarded_by, task_completed, hours_used, leaderboard_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("issiiidd", $idno, $lastname, $firstname, $sitin_id, $_SESSION['user_id'], $task_completed, $hours_used, $leaderboard_score);
     $stmt->execute();
+    $stmt->close();
     
     // 2. Count current available reward points for this student
     $pointsStmt = $conn->prepare("SELECT COALESCE(SUM(points), 0) AS total_points FROM rewards WHERE idno = ?");
@@ -62,41 +77,6 @@ try {
     $conn->query("INSERT INTO notifications (message, user_id, notification_type) 
                  VALUES ('$rewardMessage', $user_id, 'student')");
     
-    // 4. Auto-convert every 3 reward points to 1 session, then consume those points
-    if ($total_points >= 3) {
-        $sessionsToAdd = intdiv($total_points, 3);
-        $pointsToConsume = $sessionsToAdd * 3;
-
-        $updateStmt = $conn->prepare("UPDATE users SET session = session + ? WHERE idno = ?");
-        $updateStmt->bind_param("ii", $sessionsToAdd, $idno);
-        $updateResult = $updateStmt->execute();
-        $updateStmt->close();
-
-        if (!$updateResult) {
-            throw new Exception("Failed to update session: " . $conn->error);
-        }
-
-        // Consume points from oldest unconsumed rewards first
-        // Keep rows (points=0) so day_sit still shows Rewarded for past records
-        $consumeResult = $conn->query("UPDATE rewards SET points = 0 WHERE idno = {$idno} AND points > 0 ORDER BY created_at ASC, reward_id ASC LIMIT {$pointsToConsume}");
-        if (!$consumeResult) {
-            throw new Exception("Failed to consume reward points: " . $conn->error);
-        }
-
-        // Remaining points after conversion
-        $remainingStmt = $conn->prepare("SELECT COALESCE(SUM(points), 0) AS remaining_points FROM rewards WHERE idno = ?");
-        $remainingStmt->bind_param("i", $idno);
-        $remainingStmt->execute();
-        $remainingResult = $remainingStmt->get_result();
-        $remainingRow = $remainingResult->fetch_assoc();
-        $remainingPoints = (int)($remainingRow['remaining_points'] ?? 0);
-        $remainingStmt->close();
-
-        $sessionMessage = "{$pointsToConsume} reward points were converted to {$sessionsToAdd} session(s). Remaining points: {$remainingPoints}";
-        $conn->query("INSERT INTO notifications (message, user_id, notification_type) 
-                    VALUES ('$sessionMessage', $user_id, 'student')");
-    }
-
     $conn->commit();
     echo json_encode(['success' => true]);
 } catch (Exception $e) {

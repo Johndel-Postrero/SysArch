@@ -40,6 +40,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $idno = $_POST['logout_idno'];
         $time_out = date("H:i:s");
     
+        // Find active sit-in to get lab and PC before closing
+        $activeQuery = $conn->prepare("SELECT s.lab_number, COALESCE(s.pc_number, (SELECT r.pc_number FROM reservations r WHERE r.idno = s.idno AND r.lab_number = s.lab_number AND r.reservation_date = s.sitin_date AND r.time_in_status = 'sit-inned' ORDER BY r.reservation_id DESC LIMIT 1)) as pc_num FROM sitin s WHERE s.idno = ? AND s.time_out IS NULL");
+        $labNum = 0; $pcNum = 0;
+        if ($activeQuery) {
+            $activeQuery->bind_param("i", $idno);
+            $activeQuery->execute();
+            $res = $activeQuery->get_result();
+            if ($row = $res->fetch_assoc()) {
+                $labNum = intval($row['lab_number']);
+                $pcNum = intval($row['pc_num']);
+            }
+            $activeQuery->close();
+        }
+
         // Update the reservations table to log out the user
         $logoutQuery = $conn->prepare("UPDATE sitin SET time_out = ? WHERE idno = ? AND sitin_date = CURDATE() AND time_out IS NULL");
         $logoutQuery->bind_param("si", $time_out, $idno);
@@ -50,6 +64,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $deductSessionQuery->bind_param("i", $idno);
             $deductSessionQuery->execute();
             $deductSessionQuery->close();
+            
+            // Free up PC in lab_pcs
+            if ($labNum > 0 && $pcNum > 0) {
+                $freePc = $conn->prepare("UPDATE lab_pcs SET status = 'available' WHERE lab_number = ? AND pc_number = ?");
+                if ($freePc) {
+                    $freePc->bind_param("ii", $labNum, $pcNum);
+                    $freePc->execute();
+                    $freePc->close();
+                }
+            }
+
+            // Update reservations status
+            $updateReservation = $conn->prepare("UPDATE reservations SET time_in_status = 'completed' WHERE idno = ? AND time_in_status = 'sit-inned'");
+            if ($updateReservation) {
+                $updateReservation->bind_param("i", $idno);
+                $updateReservation->execute();
+                $updateReservation->close();
+            }
     
             $_SESSION['success'] = "User successfully logged out and session deducted!";
         } else {
@@ -120,6 +152,7 @@ $conn->close();
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
+    <link rel="stylesheet" href="../css/student-dark.css">
     <style>
         body {
             font-family: "Poppins-Regular";
@@ -187,7 +220,7 @@ $conn->close();
         .div-button2 { height: 51px; color: white; background-color: #7952b3; border-radius: 6px; }
     </style>
 </head>
-<body class="bg-gray-100 font-sans antialiased">
+<body class="bg-[#0D0B1A] font-sans antialiased text-white">
     <div class="flex h-screen">
         <!-- Include Sidebar -->
         <?php include 'sidebarad.php'; ?>
@@ -200,50 +233,56 @@ $conn->close();
                 <div class="w-full max-w-6xl">
                     <!-- Content -->
                     <?php if (!empty($searchResults)): ?>
-                        <div class="table-container">
-                            <table class="min-w-full bg-white shadow-md rounded-lg">
+                      <div class="content-card">
+                        <div class="dark-table-wrap">
+                            <table class="dark-table">
                                 <thead>
-                                    <tr class="bg-[#002044] text-white">
-                                        <th class="py-4 px-4 text-center">ID NUMBER</th>
-                                        <th class="py-4 px-4 text-center">FULL NAME</th>
-                                        <th class="py-4 px-4 text-center">COURSE</th>
-                                        <th class="py-4 px-4 text-center">LEVEL</th>
-                                        <th class="py-4 px-4 text-center">EMAIL</th>
-                                        <th class="py-4 px-4 text-center">SESSION</th>
-                                        <th class="py-4 px-4 text-center">ACTION</th>
+                                    <tr>
+                                        <th>ID NUMBER</th>
+                                        <th>FULL NAME</th>
+                                        <th>COURSE</th>
+                                        <th>LEVEL</th>
+                                        <th>EMAIL</th>
+                                        <th>SESSION</th>
+                                        <th>ACTION</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($searchResults as $index => $user): ?>
-                                        <tr class="<?= $index % 2 === 0 ? 'bg-gray-100' : 'bg-gray-200' ?>">
-                                            <td class="py-4 px-4 text-center text-black"><?php echo htmlspecialchars($user['idno']); ?></td>
-                                            <td class="py-4 px-4 text-center"><?php echo htmlspecialchars($user['firstname'] . ' ' . $user['middlename'] . ' ' . $user['lastname']); ?></td>
-                                            <td class="py-4 px-4 text-center text-black"><?php echo htmlspecialchars($user['course']); ?></td>
-                                            <td class="py-4 px-4 text-center text-black"><?php echo htmlspecialchars($user['level']); ?></td>
-                                            <td class="py-4 px-4 text-center text-black"><?php echo htmlspecialchars($user['email']); ?></td>
-                                            <td class="py-4 px-4 text-center text-black"><?php echo htmlspecialchars($user['session']); ?></td>
-                                            <td class="py-4 px-4 text-center">
-                                                <?php if ($user['isSitInned']): ?>
-                                                    <button class="bg-gray-500 text-white px-4 py-2 rounded logout-btn">
-                                                        Currently Sit-In
-                                                    </button>
-                                                <?php else: ?>
-                                                    <button class="bg-blue-500 text-white px-4 py-2 rounded sit-in-btn"
-                                                        data-idno="<?php echo $user['idno']; ?>"
-                                                        data-fullname="<?php echo htmlspecialchars($user['firstname'] . ' ' . $user['middlename'] . ' ' . $user['lastname']); ?>"
-                                                        data-session="<?php echo $user['session']; ?>">
-                                                        Sit-In
-                                                    </button>
-                                                <?php endif; ?>
+                                        <tr>
+                                            <td><span class="id-cell"><?php echo htmlspecialchars($user['idno']); ?></span></td>
+                                            <td><span class="name-text"><?php echo htmlspecialchars($user['firstname'] . ' ' . $user['middlename'] . ' ' . $user['lastname']); ?></span></td>
+                                            <td><span class="course-badge course-default"><?php echo htmlspecialchars($user['course']); ?></span></td>
+                                            <td><span class="level-badge"><?php echo htmlspecialchars($user['level']); ?></span></td>
+                                            <td><span class="email-cell"><?php echo htmlspecialchars($user['email']); ?></span></td>
+                                            <td><span class="session-badge"><?php echo htmlspecialchars($user['session']); ?></span></td>
+                                            <td>
+                                                <div class="action-btns" style="justify-content: center;">
+                                                    <?php if ($user['isSitInned']): ?>
+                                                        <button class="res-decline" disabled style="opacity:0.6;">
+                                                            Currently Sit-In
+                                                        </button>
+                                                    <?php else: ?>
+                                                        <button class="res-approve sit-in-btn"
+                                                            data-idno="<?php echo $user['idno']; ?>"
+                                                            data-fullname="<?php echo htmlspecialchars($user['firstname'] . ' ' . $user['middlename'] . ' ' . $user['lastname']); ?>"
+                                                            data-session="<?php echo $user['session']; ?>">
+                                                            Sit-In
+                                                        </button>
+                                                    <?php endif; ?>
+                                                </div>
                                             </td>
-
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
+                      </div><!-- end content-card -->
                     <?php else: ?>
-                        <p class="text-red-500">No results found.</p>
+                      <div class="content-card" style="text-align:center;padding:60px 20px;">
+                        <i class="fas fa-search mb-3" style="font-size:40px;display:block;opacity:0.3;color:#8B3FD9;"></i>
+                        <p class="text-[#9A8FB0]">No results found.</p>
+                      </div>
                     <?php endif; ?>
 
                     <!-- SIT-IN Modal -->
