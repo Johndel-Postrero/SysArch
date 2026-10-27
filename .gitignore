@@ -1,0 +1,5 @@
+
+# Local credentials — never commit
+admin_credentials.txt
+pass.md
+*.env
